@@ -2,31 +2,21 @@
 
 export type MembershipTier = 'basic' | 'premium' | 'allAccess';
 
-export interface User {
-  id: string;
-  name: string;
-  email: string;
-  avatar?: string;
-  membershipTier?: MembershipTier;
-  joinedAt: string;
-  purchases: string[];
-}
-
 export interface Post {
   id: string;
   slug: string;
-  type: 'video' | 'image' | 'poll' | 'audio' | 'gallery' | 'text';
+  type: 'video' | 'post' | 'gallery' | 'audio' | 'poll';
   title: string;
   description: string;
-  content: string;
-  thumbnailUrl?: string;
-  coverImageUrl?: string;
+  content?: string;
   createdAt: string;
   tier: MembershipTier;
-  price?: number;
   isLocked: boolean;
   likes: number;
   comments: number;
+  price?: number;
+  thumbnailUrl?: string;
+  coverImageUrl?: string;
   mediaContent?: {
     video?: {
       url: string;
@@ -54,8 +44,8 @@ export interface Post {
     };
     poll?: {
       options: Record<string, number>;
-      endDate?: string;
-      multipleChoice?: boolean;
+      endDate: string;
+      multipleChoice: boolean;
     };
   };
   interactions?: {
@@ -71,19 +61,20 @@ export interface Post {
   category?: string;
 }
 
-export interface Comment {
+export interface Content extends Omit<Post, 'slug'> {
+  // Content extends Post but doesn't require a slug
+}
+
+// Rest of the types remain the same...
+export interface User {
   id: string;
-  user: {
-    id: string;
-    name: string;
-    avatar: string;
-    tier?: MembershipTier;
-  };
-  content: string;
-  createdAt: string;
-  likes: number;
-  replies?: Comment[];
-  isEdited?: boolean;
+  name: string;
+  email: string;
+  avatar?: string;
+  membershipTier?: MembershipTier;
+  isAdmin?: boolean;
+  joinedAt: string;
+  purchases: string[];
 }
 
 export interface Product {
@@ -108,77 +99,22 @@ export interface Product {
   };
 }
 
-export interface CartItem {
-  product: Product;
-  quantity: number;
-  variants?: Record<string, string>;
-}
-
-export interface OrderStatus {
-  label: string;
-  color: string;
-}
-
-export interface PaymentStatus {
-  pending: 'pending';
-  completed: 'completed';
-  failed: 'failed';
-  refunded: 'refunded';
-}
-
-export interface ShippingMethod {
-  name: string;
-  price: number;
-  estimate: string;
-}
-
-export interface Order {
+export interface Comment {
   id: string;
-  userId: string;
-  items: CartItem[];
-  total: number;
-  status: keyof OrderStatus;
-  paymentStatus: keyof PaymentStatus;
-  shippingMethod: ShippingMethod;
-  shippingAddress: {
+  postId: string;
+  user: {
+    id: string;
     name: string;
-    address: string;
-    city: string;
-    country: string;
-    postalCode: string;
+    avatar: string;
+    tier?: MembershipTier;
   };
+  content: string;
   createdAt: string;
-  updatedAt: string;
+  likes: number;
+  replies?: Comment[];
 }
 
-export interface Notification {
-  id: string;
-  userId: string;
-  type: 'order' | 'content' | 'comment' | 'system';
-  title: string;
-  message: string;
-  read: boolean;
-  createdAt: string;
-}
-
-export interface SiteConfig {
-  title: string;
-  description: string;
-  bannerImage: string;
-  profileImage: string;
-  subscriberCount: string;
-  postCount: string;
-  socialLinks: {
-    platform: string;
-    url: string;
-  }[];
-  navigation: {
-    label: string;
-    path: string;
-  }[];
-}
-
-export interface ApiResponse<T> {
+export interface ServiceResponse<T> {
   success: boolean;
   data?: T;
   error?: string;

@@ -2,7 +2,7 @@
 'use client';
 import React, { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { ThumbsUp, Reply, MoreVertical } from 'lucide-react';
+import { ThumbsUp, Reply } from 'lucide-react';
 import Image from 'next/image';
 import { formatTimestamp } from '@/lib/utils';
 import { Comment, MembershipTier } from '@/lib/types';
@@ -17,6 +17,7 @@ export default function CommentSection({ postId, initialComments = [] }: Comment
   const [comments, setComments] = useState<Comment[]>(initialComments.length > 0 ? initialComments : [
     {
       id: '1',
+      postId,
       user: {
         id: 'user1',
         name: 'John Doe',
@@ -29,6 +30,7 @@ export default function CommentSection({ postId, initialComments = [] }: Comment
       replies: [
         {
           id: 'reply1',
+          postId,
           user: {
             id: 'user2',
             name: 'Jane Smith',
@@ -57,6 +59,7 @@ export default function CommentSection({ postId, initialComments = [] }: Comment
 
     const newCommentObj: Comment = {
       id: Date.now().toString(),
+      postId,
       user: {
         id: user.id,
         name: user.name,
@@ -82,6 +85,7 @@ export default function CommentSection({ postId, initialComments = [] }: Comment
 
     const newReply: Comment = {
       id: Date.now().toString(),
+      postId,
       user: {
         id: user.id,
         name: user.name,
@@ -119,6 +123,7 @@ export default function CommentSection({ postId, initialComments = [] }: Comment
         return 'bg-gray-100 text-gray-800';
     }
   };
+
 
   return (
     <div className="border-t pt-4">
