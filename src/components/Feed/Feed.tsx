@@ -1,6 +1,6 @@
+// src/components/Feed/Feed.tsx
 'use client';
-import ContentCreator from './ContentCreator';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { 
   ThumbsUp, 
@@ -23,16 +23,31 @@ interface FeedProps {
   setActiveTab: (tab: string) => void;
 }
 
-// Demo posts data
-const posts: Post[] = [
-  // ... your existing posts array
-];
-
 export default function Feed({ setActiveTab }: FeedProps) {
   const { user } = useAuth();
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [expandedPosts, setExpandedPosts] = useState<Set<string>>(new Set());
   const [expandedComments, setExpandedComments] = useState<Set<string>>(new Set());
   const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    const fetchPosts = async () => {
+      try {
+        const response = await fetch('/api/posts');
+        if (response.ok) {
+          const data = await response.json();
+          setPosts(data.posts);
+        }
+      } catch (error) {
+        console.error('Error fetching posts:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchPosts();
+  }, []);
 
   const formatTimestamp = (dateString: string) => {
     const date = new Date(dateString);
@@ -126,15 +141,24 @@ export default function Feed({ setActiveTab }: FeedProps) {
     }
   };
 
+  if (isLoading) {
+    return (
+      <div className="max-w-4xl mx-auto px-4">
+        <div className="text-center py-8">Loading...</div>
+      </div>
+    );
+  }
+
+  if (posts.length === 0) {
+    return (
+      <div className="max-w-4xl mx-auto px-4">
+        <div className="text-center py-8">No posts yet</div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-4xl mx-auto px-4">
-      {/* Add Content Creator for admins */}
-      {user?.isAdmin && (
-        <div className="mb-8">
-          <ContentCreator />
-        </div>
-      )}
-
       <div className="space-y-6">
         {posts.map((post) => (
           <article key={post.id} className="bg-white rounded-lg shadow-lg overflow-hidden">
