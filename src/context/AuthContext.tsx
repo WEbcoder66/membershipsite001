@@ -23,6 +23,7 @@ interface AuthContextType {
   setMembershipTier: (tier: MembershipTier) => void;
   addPurchase: (contentId: string) => void;
   hasPurchased: (contentId: string) => boolean;
+  isUserAdmin: () => boolean;
   error: string | null;
   clearError: () => void;
 }
@@ -59,6 +60,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const clearError = () => setError(null);
 
+  const isUserAdmin = () => {
+    return user?.isAdmin ?? false;
+  };
+
   const signIn = async (email: string, password: string) => {
     try {
       setIsLoading(true);
@@ -68,23 +73,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw new Error('Please enter a valid email address');
       }
 
-      // Check if this is an admin account
-      const isAdmin = email.toLowerCase().includes('admin');
+      // Check for admin credentials
+      const isAdminAttempt = email.toLowerCase().includes('admin');
+      if (isAdminAttempt) {
+        const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
+        const adminPassword = process.env.NEXT_PUBLIC_ADMIN_PASSWORD;
+        
+        if (email !== adminEmail || password !== adminPassword) {
+          console.log('Invalid admin credentials attempt'); // Debug log
+          throw new Error('Invalid admin credentials');
+        }
+        console.log('Admin credentials verified'); // Debug log
+      }
 
       const newUser: User = {
         id: Math.random().toString(36).substr(2, 9),
         name: email.split('@')[0],
         email,
-        isAdmin,
+        isAdmin: isAdminAttempt,
         joinedAt: new Date().toISOString(),
         purchases: [],
         avatar: '/images/profiles/default.jpg'
       };
 
+      console.log('Creating new user:', newUser); // Debug log
       setUser(newUser);
       localStorage.setItem('demoUser', JSON.stringify(newUser));
+      console.log('User signed in successfully'); // Debug log
 
     } catch (err) {
+      console.error('Sign in error:', err); // Debug log
       setError(err instanceof Error ? err.message : 'An error occurred during sign in');
       throw err;
     } finally {
@@ -107,14 +125,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw new Error('Password must be at least 6 characters long');
       }
 
-      // Check if this is an admin account
-      const isAdmin = email.toLowerCase().includes('admin');
+      // Check for admin credentials
+      const isAdminAttempt = email.toLowerCase().includes('admin');
+      if (isAdminAttempt) {
+        const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
+        if (email !== adminEmail) {
+          throw new Error('Invalid admin registration');
+        }
+      }
 
       const newUser: User = {
         id: Math.random().toString(36).substr(2, 9),
         name,
         email,
-        isAdmin,
+        isAdmin: isAdminAttempt,
         joinedAt: new Date().toISOString(),
         purchases: [],
         avatar: '/images/profiles/default.jpg'
@@ -122,8 +146,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       setUser(newUser);
       localStorage.setItem('demoUser', JSON.stringify(newUser));
+      console.log('User signed up successfully'); // Debug log
 
     } catch (err) {
+      console.error('Sign up error:', err); // Debug log
       setError(err instanceof Error ? err.message : 'An error occurred during sign up');
       throw err;
     } finally {
@@ -134,6 +160,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signOut = () => {
     setUser(null);
     localStorage.removeItem('demoUser');
+    console.log('User signed out'); // Debug log
   };
 
   const setMembershipTier = (tier: MembershipTier) => {
@@ -170,6 +197,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setMembershipTier,
         addPurchase,
         hasPurchased,
+        isUserAdmin,
         error,
         clearError,
       }}
