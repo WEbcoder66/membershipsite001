@@ -1,9 +1,8 @@
-// next.config.js
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
-    domains: ['localhost'], // Add any external image domains you might use
+    domains: ['videos.sproutvideo.com'],
   },
-}
+};
 
-module.exports = nextConfig
+module.exports = nextConfig;

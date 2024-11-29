@@ -1,36 +1,43 @@
 // src/components/ContentManager.tsx
 'use client';
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { useRouter } from 'next/navigation';
+import { MembershipTier } from '@/lib/types';
+import { createVideo, uploadVideoFile } from '@/lib/videoService';
 import { 
   Upload,
   Image as ImageIcon,
   Video,
   FileText,
-  Calendar,
   Plus,
   Edit2,
   Trash2,
   AlertCircle,
-  ChartBar
 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { MembershipTier } from '@/lib/types';
 
 interface UploadedContent {
   id: string;
   title: string;
   description: string;
   type: 'post' | 'video' | 'gallery' | 'audio';
-  url: string;
+  content?: string;
+  mediaContent?: {
+    video?: {
+      url: string;
+      thumbnail: string;
+      duration: string;
+    };
+  };
   tier: MembershipTier;
   createdAt: string;
+  isLocked: boolean;
+  likes: number;
+  comments: number;
 }
 
 export default function ContentManager() {
   const { user } = useAuth();
-  const router = useRouter();
   const [activeTab, setActiveTab] = useState<'create' | 'manage'>('create');
   const [contentType, setContentType] = useState<'post' | 'video' | 'gallery' | 'audio'>('post');
   const [title, setTitle] = useState('');
@@ -41,13 +48,6 @@ export default function ContentManager() {
   const [error, setError] = useState('');
   const [uploadedContent, setUploadedContent] = useState<UploadedContent[]>([]);
 
-  // Check if user is admin, if not redirect to login
-  useEffect(() => {
-    if (!user?.isAdmin) {
-      router.push('/admin/login');
-    }
-  }, [user, router]);
-
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       setFile(e.target.files[0]);
@@ -56,39 +56,73 @@ export default function ContentManager() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!file && contentType !== 'post') {
-      setError('Please upload a file');
-      return;
-    }
-
     setIsUploading(true);
     setError('');
 
     try {
-      // Here you would implement your actual file upload logic
-      // For now, we'll simulate an upload
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      if (!title || !description) {
+        throw new Error('Title and description are required');
+      }
 
-      const newContent: UploadedContent = {
-        id: Date.now().toString(),
-        title,
-        description,
-        type: contentType,
-        url: file ? URL.createObjectURL(file) : '',
-        tier: selectedTier,
-        createdAt: new Date().toISOString()
-      };
+      if (contentType === 'post') {
+        // Handle text post
+        const newPost = {
+          id: Date.now().toString(),
+          title,
+          description,
+          type: 'post' as const,
+          content: description,
+          tier: selectedTier,
+          createdAt: new Date().toISOString(),
+          isLocked: selectedTier !== 'basic',
+          likes: 0,
+          comments: 0,
+        };
 
-      setUploadedContent(prev => [newContent, ...prev]);
-      
+        setUploadedContent(prev => [newPost, ...prev]);
+
+      } else if (contentType === 'video' && file) {
+        // Handle video upload
+        const formData = new FormData();
+        formData.append('title', title);
+        formData.append('description', description);
+        formData.append('file', file);
+        formData.append('tier', selectedTier);
+
+        const { token } = await createVideo(title, description);
+        const uploadResult = await uploadVideoFile(token, file);
+
+        const newVideo: UploadedContent = {
+          id: uploadResult.id,
+          title,
+          description,
+          type: 'video',
+          tier: selectedTier,
+          createdAt: new Date().toISOString(),
+          isLocked: selectedTier !== 'basic',
+          likes: 0,
+          comments: 0,
+          mediaContent: {
+            video: {
+              url: uploadResult.video_url,
+              thumbnail: uploadResult.thumbnail_url,
+              duration: uploadResult.duration || '0:00',
+            }
+          }
+        };
+
+        setUploadedContent(prev => [newVideo, ...prev]);
+      }
+
       // Reset form
       setTitle('');
       setDescription('');
       setFile(null);
-      alert('Content uploaded successfully!');
+      alert('Content created successfully!');
+
     } catch (err) {
-      setError('Failed to upload content. Please try again.');
-      console.error(err);
+      console.error('Upload error:', err);
+      setError(err instanceof Error ? err.message : 'Failed to create content');
     } finally {
       setIsUploading(false);
     }
@@ -100,28 +134,38 @@ export default function ContentManager() {
     }
 
     try {
-      // Here you would make an API call to delete the content
+      const contentToDelete = uploadedContent.find(c => c.id === contentId);
+      
+      if (contentToDelete?.type === 'video') {
+        // Delete from SproutVideo if it's a video
+        const response = await fetch('/api/videos', {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${user?.email}`
+          },
+          body: JSON.stringify({ videoId: contentId })
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to delete video');
+        }
+      }
+
+      // Remove from local state
       setUploadedContent(prev => prev.filter(content => content.id !== contentId));
       alert('Content deleted successfully!');
+
     } catch (err) {
+      console.error('Delete error:', err);
       setError('Failed to delete content');
-      console.error(err);
     }
   };
 
-  if (!user?.isAdmin) {
-    return null;
-  }
-
-    return (
+  return (
     <div className="max-w-7xl mx-auto px-4 py-8">
-      {/* Header */}
-      <div className="bg-white p-6 rounded-lg shadow-lg mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Content Manager</h1>
-      </div>
-
       {/* Navigation Tabs */}
-      <div className="flex gap-4 mb-6 bg-white p-4 rounded-lg shadow-lg">
+      <div className="flex gap-4 bg-white rounded-lg shadow-lg p-4 mb-6">
         <button
           onClick={() => setActiveTab('create')}
           className={`py-2 px-4 font-medium rounded-lg transition-colors ${
@@ -150,9 +194,14 @@ export default function ContentManager() {
         </button>
       </div>
 
-      {/* Content Area */}
+      {error && (
+        <Alert variant="destructive" className="mb-6 bg-red-50 border-red-200">
+          <AlertCircle className="h-4 w-4 text-red-600" />
+          <AlertDescription className="text-red-700">{error}</AlertDescription>
+        </Alert>
+      )}
+
       <div className="bg-white rounded-lg shadow-lg">
-        {/* Create Content Form */}
         {activeTab === 'create' && (
           <div className="p-6">
             <form onSubmit={handleSubmit} className="space-y-6">
@@ -213,30 +262,37 @@ export default function ContentManager() {
                 />
               </div>
 
-              {/* File Upload */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Upload Content
-                </label>
-                <div className="border-2 border-dashed rounded-lg p-8 text-center">
-                  <input
-                    type="file"
-                    onChange={handleFileChange}
-                    className="hidden"
-                    id="file-upload"
-                  />
-                  <label
-                    htmlFor="file-upload"
-                    className="cursor-pointer flex flex-col items-center gap-2"
-                  >
-                    <Upload className="w-8 h-8 text-gray-400" />
-                    <span className="text-gray-600">Click to upload or drag and drop</span>
-                    <span className="text-sm text-gray-500">
-                      {file ? file.name : 'No file selected'}
-                    </span>
+              {/* File Upload (for video/gallery/audio) */}
+              {contentType !== 'post' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Upload Content
                   </label>
+                  <div className="border-2 border-dashed rounded-lg p-8 text-center">
+                    <input
+                      type="file"
+                      onChange={handleFileChange}
+                      className="hidden"
+                      id="file-upload"
+                      accept={
+                        contentType === 'video' ? 'video/*' :
+                        contentType === 'gallery' ? 'image/*' :
+                        contentType === 'audio' ? 'audio/*' : undefined
+                      }
+                    />
+                    <label
+                      htmlFor="file-upload"
+                      className="cursor-pointer flex flex-col items-center gap-2"
+                    >
+                      <Upload className="w-8 h-8 text-gray-400" />
+                      <span className="text-gray-600">Click to upload or drag and drop</span>
+                      <span className="text-sm text-gray-500">
+                        {file ? file.name : 'No file selected'}
+                      </span>
+                    </label>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Tier Selection */}
               <div>
@@ -262,13 +318,12 @@ export default function ContentManager() {
                   hover:bg-yellow-500 transition-colors
                   ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
-                {isUploading ? 'Uploading...' : 'Upload Content'}
+                {isUploading ? 'Uploading...' : 'Create Content'}
               </button>
             </form>
           </div>
         )}
 
-        {/* Manage Content */}
         {activeTab === 'manage' && (
           <div className="p-6">
             <h2 className="text-xl font-bold text-gray-900 mb-6">Manage Content</h2>
@@ -284,13 +339,18 @@ export default function ContentManager() {
                     <div>
                       <h3 className="font-medium text-gray-900">{content.title}</h3>
                       <p className="text-sm text-gray-600">{content.description}</p>
-                      <span className="inline-block mt-2 px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800">
-                        {content.tier}
-                      </span>
+                      <div className="flex gap-2 mt-2">
+                        <span className="text-xs px-2 py-1 rounded-full bg-yellow-100 text-yellow-800">
+                          {content.tier}
+                        </span>
+                        <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-800">
+                          {content.type}
+                        </span>
+                      </div>
                     </div>
                     <button
                       onClick={() => handleDelete(content.id)}
-                      className="p-2 text-red-600 hover:bg-gray-100 rounded"
+                      className="p-2 hover:bg-gray-100 rounded text-red-600"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
