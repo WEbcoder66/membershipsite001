@@ -1,0 +1,105 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Default light theme variables */
+:root {
+  --foreground-rgb: 0, 0, 0;           /* Black text */
+  --background-start-rgb: 255, 255, 255; /* White background */
+  --background-end-rgb: 240, 240, 240;   /* Slight gray gradient end */
+  
+  /* Accent colors */
+  --primary-rgb: 234, 179, 8;          /* Yellow-400 */
+  --secondary-rgb: 30, 41, 59;         /* Slate-800 */
+  
+  /* Status colors */
+  --success-rgb: 34, 197, 94;          /* Green-500 */
+  --error-rgb: 239, 68, 68;            /* Red-500 */
+  --warning-rgb: 234, 179, 8;          /* Yellow-400 */
+}
+
+/* Dark theme variables */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --foreground-rgb: 255, 255, 255;     /* White text */
+    --background-start-rgb: 0, 0, 0;      /* Black background */
+    --background-end-rgb: 17, 24, 39;     /* Dark gray gradient end */
+    
+    /* Accent colors - adjusted for dark mode */
+    --primary-rgb: 250, 204, 21;        /* Yellow-300 */
+    --secondary-rgb: 226, 232, 240;     /* Slate-200 */
+  }
+}
+
+/* Base styles */
+body {
+  color: rgb(var(--foreground-rgb));
+  background: linear-gradient(
+    to bottom,
+    rgb(var(--background-start-rgb)),
+    rgb(var(--background-end-rgb))
+  );
+}
+
+/* Custom utility classes */
+@layer utilities {
+  .text-primary {
+    color: rgb(var(--primary-rgb));
+  }
+  
+  .bg-primary {
+    background-color: rgb(var(--primary-rgb));
+  }
+  
+  .border-primary {
+    border-color: rgb(var(--primary-rgb));
+  }
+}
+
+/* Custom component classes */
+@layer components {
+  .btn-primary {
+    @apply px-4 py-2 bg-yellow-400 text-black rounded-md font-semibold 
+           hover:bg-yellow-500 transition-colors;
+  }
+  
+  .card {
+    @apply bg-white rounded-lg shadow-lg p-6;
+  }
+  
+  .input-field {
+    @apply w-full px-4 py-2 border rounded-lg focus:ring-2 
+           focus:ring-yellow-400 focus:border-transparent;
+  }
+}
+
+/* Animation utilities */
+@layer utilities {
+  .animate-fade-in {
+    animation: fadeIn 0.5s ease-in;
+  }
+  
+  .animate-slide-up {
+    animation: slideUp 0.3s ease-out;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
