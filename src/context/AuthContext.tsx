@@ -36,6 +36,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Load user from localStorage on initial mount
     const loadUser = () => {
       try {
         const savedUser = localStorage.getItem('demoUser');
@@ -53,6 +54,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    // Save user to localStorage whenever it changes
     if (user) {
       localStorage.setItem('demoUser', JSON.stringify(user));
     }
@@ -69,40 +71,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setIsLoading(true);
       clearError();
 
+      // Validate email format
       if (!email.includes('@')) {
         throw new Error('Please enter a valid email address');
       }
 
       // Check for admin credentials
-      const isAdminAttempt = email.toLowerCase().includes('admin');
-      if (isAdminAttempt) {
-        const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
-        const adminPassword = process.env.NEXT_PUBLIC_ADMIN_PASSWORD;
-        
-        if (email !== adminEmail || password !== adminPassword) {
-          console.log('Invalid admin credentials attempt'); // Debug log
-          throw new Error('Invalid admin credentials');
-        }
-        console.log('Admin credentials verified'); // Debug log
-      }
+      const isAdmin = email === process.env.NEXT_PUBLIC_ADMIN_EMAIL && 
+                     password === process.env.NEXT_PUBLIC_ADMIN_PASSWORD;
+
+      console.log('Admin check:', { isAdmin, email }); // Debug log
 
       const newUser: User = {
         id: Math.random().toString(36).substr(2, 9),
         name: email.split('@')[0],
         email,
-        isAdmin: isAdminAttempt,
+        isAdmin,
         joinedAt: new Date().toISOString(),
         purchases: [],
         avatar: '/images/profiles/default.jpg'
       };
 
-      console.log('Creating new user:', newUser); // Debug log
       setUser(newUser);
       localStorage.setItem('demoUser', JSON.stringify(newUser));
-      console.log('User signed in successfully'); // Debug log
+      console.log('User signed in:', newUser); // Debug log
 
     } catch (err) {
-      console.error('Sign in error:', err); // Debug log
+      console.error('Sign in error:', err);
       setError(err instanceof Error ? err.message : 'An error occurred during sign in');
       throw err;
     } finally {
@@ -115,6 +110,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setIsLoading(true);
       clearError();
 
+      // Validation
       if (!email.includes('@')) {
         throw new Error('Please enter a valid email address');
       }
@@ -125,20 +121,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw new Error('Password must be at least 6 characters long');
       }
 
-      // Check for admin credentials
-      const isAdminAttempt = email.toLowerCase().includes('admin');
-      if (isAdminAttempt) {
-        const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
-        if (email !== adminEmail) {
-          throw new Error('Invalid admin registration');
-        }
-      }
+      // Check for admin registration attempt
+      const isAdmin = email === process.env.NEXT_PUBLIC_ADMIN_EMAIL && 
+                     password === process.env.NEXT_PUBLIC_ADMIN_PASSWORD;
 
       const newUser: User = {
         id: Math.random().toString(36).substr(2, 9),
         name,
         email,
-        isAdmin: isAdminAttempt,
+        isAdmin,
         joinedAt: new Date().toISOString(),
         purchases: [],
         avatar: '/images/profiles/default.jpg'
@@ -146,10 +137,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       setUser(newUser);
       localStorage.setItem('demoUser', JSON.stringify(newUser));
-      console.log('User signed up successfully'); // Debug log
 
     } catch (err) {
-      console.error('Sign up error:', err); // Debug log
+      console.error('Sign up error:', err);
       setError(err instanceof Error ? err.message : 'An error occurred during sign up');
       throw err;
     } finally {
@@ -160,7 +150,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signOut = () => {
     setUser(null);
     localStorage.removeItem('demoUser');
-    console.log('User signed out'); // Debug log
+    console.log('User signed out');
   };
 
   const setMembershipTier = (tier: MembershipTier) => {
