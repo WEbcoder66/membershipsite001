@@ -113,188 +113,194 @@ export default function ContentManager() {
     return null;
   }
 
-  return (
+    return (
     <div className="max-w-7xl mx-auto px-4 py-8">
+      {/* Header */}
+      <div className="bg-white p-6 rounded-lg shadow-lg mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">Content Manager</h1>
+      </div>
+
       {/* Navigation Tabs */}
-      <div className="flex gap-4 border-b mb-6">
+      <div className="flex gap-4 mb-6 bg-white p-4 rounded-lg shadow-lg">
         <button
           onClick={() => setActiveTab('create')}
-          className={`py-2 px-4 font-medium ${
+          className={`py-2 px-4 font-medium rounded-lg transition-colors ${
             activeTab === 'create'
-              ? 'border-b-2 border-yellow-400 text-black'
-              : 'text-gray-600'
+              ? 'bg-yellow-400 text-black'
+              : 'text-gray-600 hover:bg-gray-100'
           }`}
         >
-          Create Content
+          <div className="flex items-center gap-2">
+            <Plus className="w-5 h-5" />
+            Create Content
+          </div>
         </button>
         <button
           onClick={() => setActiveTab('manage')}
-          className={`py-2 px-4 font-medium ${
+          className={`py-2 px-4 font-medium rounded-lg transition-colors ${
             activeTab === 'manage'
-              ? 'border-b-2 border-yellow-400 text-black'
-              : 'text-gray-600'
+              ? 'bg-yellow-400 text-black'
+              : 'text-gray-600 hover:bg-gray-100'
           }`}
         >
-          Manage Content
+          <div className="flex items-center gap-2">
+            <FileText className="w-5 h-5" />
+            Manage Content
+          </div>
         </button>
       </div>
 
-      {error && (
-        <Alert variant="destructive" className="mb-6 bg-red-50 border-red-200">
-          <AlertCircle className="h-4 w-4 text-red-600" />
-          <AlertDescription className="text-red-700">{error}</AlertDescription>
-        </Alert>
-      )}
-
-      {activeTab === 'create' && (
-        <div className="bg-white rounded-lg shadow-lg p-6">
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Content Type Selection */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Content Type
-              </label>
-              <div className="grid grid-cols-4 gap-4">
-                {[
-                  { type: 'post', icon: FileText, label: 'Post' },
-                  { type: 'video', icon: Video, label: 'Video' },
-                  { type: 'gallery', icon: ImageIcon, label: 'Gallery' },
-                  { type: 'audio', icon: FileText, label: 'Audio' }
-                ].map(({ type, icon: Icon, label }) => (
-                  <button
-                    key={type}
-                    type="button"
-                    onClick={() => setContentType(type as any)}
-                    className={`p-4 rounded-lg border-2 flex flex-col items-center gap-2 ${
-                      contentType === type
-                        ? 'border-yellow-400 bg-yellow-50'
-                        : 'border-gray-200'
-                    }`}
-                  >
-                    <Icon className="w-6 h-6" />
-                    <span>{label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Title & Description */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Title
-              </label>
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Description
-              </label>
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={4}
-                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400"
-                required
-              />
-            </div>
-
-            {/* File Upload */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Upload Content
-              </label>
-              <div className="border-2 border-dashed rounded-lg p-8 text-center">
-                <input
-                  type="file"
-                  onChange={handleFileChange}
-                  className="hidden"
-                  id="file-upload"
-                />
-                <label
-                  htmlFor="file-upload"
-                  className="cursor-pointer flex flex-col items-center gap-2"
-                >
-                  <Upload className="w-8 h-8 text-gray-400" />
-                  <span className="text-gray-600">Click to upload or drag and drop</span>
-                  <span className="text-sm text-gray-500">
-                    {file ? file.name : 'No file selected'}
-                  </span>
+      {/* Content Area */}
+      <div className="bg-white rounded-lg shadow-lg">
+        {/* Create Content Form */}
+        {activeTab === 'create' && (
+          <div className="p-6">
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Content Type Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Content Type
                 </label>
+                <div className="grid grid-cols-4 gap-4">
+                  {[
+                    { type: 'post', icon: FileText, label: 'Post' },
+                    { type: 'video', icon: Video, label: 'Video' },
+                    { type: 'gallery', icon: ImageIcon, label: 'Gallery' },
+                    { type: 'audio', icon: FileText, label: 'Audio' }
+                  ].map(({ type, icon: Icon, label }) => (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => setContentType(type as any)}
+                      className={`p-4 rounded-lg border-2 flex flex-col items-center gap-2 ${
+                        contentType === type
+                          ? 'border-yellow-400 bg-yellow-50 text-black'
+                          : 'border-gray-200 text-gray-600 hover:border-yellow-200'
+                      }`}
+                    >
+                      <Icon className="w-6 h-6" />
+                      <span>{label}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
 
-            {/* Membership Tier */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Membership Tier
-              </label>
-              <select
-                value={selectedTier}
-                onChange={(e) => setSelectedTier(e.target.value as MembershipTier)}
-                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400"
+              {/* Title */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Title
+                </label>
+                <input
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400 text-gray-900"
+                  required
+                />
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Description
+                </label>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  rows={4}
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400 text-gray-900"
+                  required
+                />
+              </div>
+
+              {/* File Upload */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Upload Content
+                </label>
+                <div className="border-2 border-dashed rounded-lg p-8 text-center">
+                  <input
+                    type="file"
+                    onChange={handleFileChange}
+                    className="hidden"
+                    id="file-upload"
+                  />
+                  <label
+                    htmlFor="file-upload"
+                    className="cursor-pointer flex flex-col items-center gap-2"
+                  >
+                    <Upload className="w-8 h-8 text-gray-400" />
+                    <span className="text-gray-600">Click to upload or drag and drop</span>
+                    <span className="text-sm text-gray-500">
+                      {file ? file.name : 'No file selected'}
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Tier Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Access Tier
+                </label>
+                <select
+                  value={selectedTier}
+                  onChange={(e) => setSelectedTier(e.target.value as MembershipTier)}
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400 text-gray-900"
+                >
+                  <option value="basic">Basic</option>
+                  <option value="premium">Premium</option>
+                  <option value="allAccess">All Access</option>
+                </select>
+              </div>
+
+              {/* Submit Button */}
+              <button
+                type="submit"
+                disabled={isUploading}
+                className={`w-full bg-yellow-400 text-black py-3 rounded-lg font-medium 
+                  hover:bg-yellow-500 transition-colors
+                  ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
-                <option value="basic">Basic</option>
-                <option value="premium">Premium</option>
-                <option value="allAccess">All Access</option>
-              </select>
-            </div>
+                {isUploading ? 'Uploading...' : 'Upload Content'}
+              </button>
+            </form>
+          </div>
+        )}
 
-            <button
-              type="submit"
-              disabled={isUploading}
-              className={`w-full bg-yellow-400 text-black py-3 rounded-lg font-medium 
-                hover:bg-yellow-500 transition-colors
-                ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
-            >
-              {isUploading ? 'Uploading...' : 'Upload Content'}
-            </button>
-          </form>
-        </div>
-      )}
-
-      {activeTab === 'manage' && (
-        <div className="bg-white rounded-lg shadow-lg p-6">
-          <h2 className="text-xl font-bold mb-6">Manage Content</h2>
-          <div className="space-y-4">
+        {/* Manage Content */}
+        {activeTab === 'manage' && (
+          <div className="p-6">
+            <h2 className="text-xl font-bold text-gray-900 mb-6">Manage Content</h2>
             {uploadedContent.length === 0 ? (
               <p className="text-center text-gray-600 py-8">No content uploaded yet.</p>
             ) : (
-              uploadedContent.map(content => (
-                <div
-                  key={content.id}
-                  className="flex items-center justify-between p-4 bg-gray-50 rounded-lg"
-                >
-                  <div>
-                    <h3 className="font-medium">{content.title}</h3>
-                    <p className="text-sm text-gray-600">{content.description}</p>
-                    <div className="flex gap-2 mt-2">
-                      <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full">
+              <div className="space-y-4">
+                {uploadedContent.map(content => (
+                  <div
+                    key={content.id}
+                    className="flex items-center justify-between p-4 bg-gray-50 rounded-lg"
+                  >
+                    <div>
+                      <h3 className="font-medium text-gray-900">{content.title}</h3>
+                      <p className="text-sm text-gray-600">{content.description}</p>
+                      <span className="inline-block mt-2 px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800">
                         {content.tier}
                       </span>
-                      <span className="text-xs bg-gray-100 text-gray-800 px-2 py-1 rounded-full">
-                        {content.type}
-                      </span>
                     </div>
+                    <button
+                      onClick={() => handleDelete(content.id)}
+                      className="p-2 text-red-600 hover:bg-gray-100 rounded"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
-                  <button
-                    onClick={() => handleDelete(content.id)}
-                    className="p-2 hover:bg-gray-100 rounded text-red-600"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              ))
+                ))}
+              </div>
             )}
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
