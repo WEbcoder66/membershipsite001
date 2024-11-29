@@ -1,4 +1,5 @@
 'use client';
+import ContentCreator from './ContentCreator';
 import React, { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { 
@@ -24,93 +25,7 @@ interface FeedProps {
 
 // Demo posts data
 const posts: Post[] = [
-  {
-    id: '1',
-    slug: 'latest-project-behind-scenes',
-    title: 'Latest Project Behind the Scenes',
-    description: 'Get an exclusive look at how we create our content. Learn about our production process, equipment setup, and creative decisions.',
-    type: 'video',
-    createdAt: new Date().toISOString(),
-    tier: 'premium',
-    isLocked: true,
-    likes: 128,
-    comments: 45,
-    content: '',
-    mediaContent: {
-      video: {
-        url: '/videos/video1.mp4',
-        thumbnail: '/images/posts/video-thumb.jpg',
-        duration: '10:30'
-      }
-    }
-  },
-  {
-    id: '2',
-    slug: 'what-should-we-create-next',
-    title: 'What Should We Create Next?',
-    description: 'Help us decide our next big project! Your input shapes our content.',
-    type: 'poll',
-    createdAt: new Date(Date.now() - 3600000).toISOString(),
-    tier: 'basic',
-    isLocked: false,
-    likes: 89,
-    comments: 23,
-    content: '',
-    mediaContent: {
-      poll: {
-        options: {
-          'Tutorial Series': 145,
-          'Documentary': 98,
-          'Live Workshop': 76,
-          'Case Study': 54
-        },
-        endDate: new Date(Date.now() + 86400000 * 7).toISOString(),
-        multipleChoice: false
-      }
-    }
-  },
-  {
-    id: '3',
-    slug: 'studio-setup-tour-2024',
-    title: 'Studio Setup Tour 2024',
-    description: 'Take a tour of our newly upgraded studio! Check out our latest equipment, workspace organization, and creative setup.',
-    type: 'gallery',
-    createdAt: new Date(Date.now() - 7200000).toISOString(),
-    tier: 'basic',
-    isLocked: false,
-    likes: 256,
-    comments: 45,
-    content: '',
-    mediaContent: {
-      gallery: {
-        images: [
-          '/images/gallery/image1.jpg',
-          '/images/gallery/image2.jpg',
-          '/images/gallery/image3.jpg',
-          '/images/gallery/image4.jpg'
-        ]
-      }
-    }
-  },
-  {
-    id: '4',
-    slug: 'creator-podcast-42',
-    title: 'Creator Podcast #42',
-    description: 'Join us for an in-depth discussion about content creation, industry trends, and pro tips for growing your audience.',
-    type: 'audio',
-    createdAt: new Date(Date.now() - 14400000).toISOString(),
-    tier: 'basic',
-    isLocked: false,
-    likes: 92,
-    comments: 23,
-    content: '',
-    mediaContent: {
-      audio: {
-        url: '/audio/podcast1.mp3',
-        duration: '45:20'
-      }
-    }
-  }
+  // ... your existing posts array
 ];
 
 export default function Feed({ setActiveTab }: FeedProps) {
@@ -171,48 +86,55 @@ export default function Feed({ setActiveTab }: FeedProps) {
   };
 
   const renderContent = (post: Post) => {
-  if (!post.mediaContent) return null;
+    if (!post.mediaContent) return null;
 
-  switch (post.type) {
-    case 'video':
-      return post.mediaContent.video && (
-        <VideoPlayer
-          url={post.mediaContent.video.url}
-          thumbnail={post.mediaContent.video.thumbnail}
-          title={post.title}
-          requiredTier={post.tier}
-          duration={post.mediaContent.video.duration}
-          setActiveTab={setActiveTab}
-        />
-      );
-    case 'poll':
-      return post.mediaContent.poll && (
-        <PollComponent
-          options={post.mediaContent.poll.options}
-          endDate={post.mediaContent.poll.endDate}
-          multipleChoice={post.mediaContent.poll.multipleChoice}
-        />
-      );
-    case 'gallery':
-      return post.mediaContent.gallery && (
-        <ImageGallery
-          images={post.mediaContent.gallery.images}
-        />
-      );
-    case 'audio':
-      return post.mediaContent.audio && (
-        <AudioPlayer
-          url={post.mediaContent.audio.url}
-          duration={post.mediaContent.audio.duration}
-        />
-      );
-    default:
-      return null;
-  }
-};
+    switch (post.type) {
+      case 'video':
+        return post.mediaContent.video && (
+          <VideoPlayer
+            url={post.mediaContent.video.url}
+            thumbnail={post.mediaContent.video.thumbnail}
+            title={post.title}
+            requiredTier={post.tier}
+            duration={post.mediaContent.video.duration}
+            setActiveTab={setActiveTab}
+          />
+        );
+      case 'poll':
+        return post.mediaContent.poll && (
+          <PollComponent
+            options={post.mediaContent.poll.options}
+            endDate={post.mediaContent.poll.endDate}
+            multipleChoice={post.mediaContent.poll.multipleChoice}
+          />
+        );
+      case 'gallery':
+        return post.mediaContent.gallery && (
+          <ImageGallery
+            images={post.mediaContent.gallery.images}
+          />
+        );
+      case 'audio':
+        return post.mediaContent.audio && (
+          <AudioPlayer
+            url={post.mediaContent.audio.url}
+            duration={post.mediaContent.audio.duration}
+          />
+        );
+      default:
+        return null;
+    }
+  };
 
   return (
     <div className="max-w-4xl mx-auto px-4">
+      {/* Add Content Creator for admins */}
+      {user?.isAdmin && (
+        <div className="mb-8">
+          <ContentCreator />
+        </div>
+      )}
+
       <div className="space-y-6">
         {posts.map((post) => (
           <article key={post.id} className="bg-white rounded-lg shadow-lg overflow-hidden">

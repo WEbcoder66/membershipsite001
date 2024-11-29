@@ -1,7 +1,18 @@
 // src/context/AuthContext.tsx
 'use client';
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { User, MembershipTier } from '@/lib/types';
+import { MembershipTier } from '@/lib/types';
+
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  avatar?: string;
+  membershipTier?: MembershipTier;
+  isAdmin?: boolean;
+  joinedAt: string;
+  purchases: string[];
+}
 
 interface AuthContextType {
   user: User | null;
@@ -57,12 +68,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw new Error('Please enter a valid email address');
       }
 
+      // Check if this is an admin account
+      const isAdmin = email.toLowerCase().includes('admin');
+
       const newUser: User = {
         id: Math.random().toString(36).substr(2, 9),
         name: email.split('@')[0],
         email,
+        isAdmin,
         joinedAt: new Date().toISOString(),
         purchases: [],
+        avatar: '/images/profiles/default.jpg'
       };
 
       setUser(newUser);
@@ -91,12 +107,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw new Error('Password must be at least 6 characters long');
       }
 
+      // Check if this is an admin account
+      const isAdmin = email.toLowerCase().includes('admin');
+
       const newUser: User = {
         id: Math.random().toString(36).substr(2, 9),
         name,
         email,
+        isAdmin,
         joinedAt: new Date().toISOString(),
         purchases: [],
+        avatar: '/images/profiles/default.jpg'
       };
 
       setUser(newUser);
