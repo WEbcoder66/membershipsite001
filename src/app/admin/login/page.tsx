@@ -18,16 +18,26 @@ export default function AdminLogin() {
     setIsLoading(true);
 
     try {
-      console.log('Attempting sign in...'); // Debug log
+      // Log the attempt
+      console.log('Attempting to sign in with:', email);
+      
+      // Attempt sign in
       await signIn(email, password);
-      console.log('Sign in successful, redirecting...'); // Debug log
-      router.push('/admin/dashboard');
+      
+      // Log success
+      console.log('Sign in successful, redirecting...');
+      
+      // Add a small delay before redirecting
+      setTimeout(() => {
+        router.push('/admin/dashboard');
+      }, 100);
+      
     } catch (error) {
-      console.error('Sign in error:', error); // Debug log
+      console.error('Sign in error:', error);
       setError('Invalid credentials');
-    } finally {
-      setIsLoading(false);
     }
+    
+    setIsLoading(false);
   };
 
   return (
@@ -57,7 +67,6 @@ export default function AdminLogin() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="mt-1 w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400 text-gray-900"
-              placeholder="admin@example.com"
             />
           </div>
 
@@ -71,18 +80,24 @@ export default function AdminLogin() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="mt-1 w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400 text-gray-900"
-              placeholder="••••••••"
             />
           </div>
 
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full bg-yellow-400 text-black py-2 px-4 rounded-lg hover:bg-yellow-500 font-medium disabled:opacity-50 transition-colors"
+            className="w-full bg-yellow-400 text-black py-2 px-4 rounded-lg hover:bg-yellow-500 font-medium disabled:opacity-50"
           >
             {isLoading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
+
+        <div className="mt-4 text-sm text-gray-600 text-center">
+          {/* Add this to show the current values */}
+          <div className="mt-2">
+            Expected admin email: {process.env.NEXT_PUBLIC_ADMIN_EMAIL}
+          </div>
+        </div>
       </div>
     </div>
   );
