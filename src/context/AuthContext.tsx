@@ -1,5 +1,6 @@
 // src/context/AuthContext.tsx
 'use client';
+import { ADMIN_CREDENTIALS, ADMIN_CONFIG } from '@/lib/adminConfig';
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { MembershipTier } from '@/lib/types';
 

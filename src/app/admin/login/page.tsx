@@ -6,6 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import Link from 'next/link';
 import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { ADMIN_CREDENTIALS } from '@/lib/adminConfig';
 
 export default function AdminLogin() {
   const router = useRouter();

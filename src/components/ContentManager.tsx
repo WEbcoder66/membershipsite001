@@ -1,5 +1,6 @@
 // src/components/ContentManager.tsx
 'use client';
+import { hasPermission, ADMIN_CONFIG } from '@/lib/adminConfig';
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { Content } from '@/lib/types';
