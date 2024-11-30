@@ -8,7 +8,6 @@ import {
   Upload,
   Image as ImageIcon,
   Video,
-  FileText,
   Edit2,
   Trash2,
   AlertCircle,
@@ -17,7 +16,8 @@ import {
   PlusCircle,
   X,
   MessageSquare,
-  Music
+  Music,
+  FileText
 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
@@ -50,6 +50,15 @@ export default function ContentManager() {
     }
   }, []);
 
+  // Cleanup preview URLs when component unmounts
+  useEffect(() => {
+    return () => {
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [previewUrl]);
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const selectedFile = e.target.files[0];
@@ -58,6 +67,11 @@ export default function ContentManager() {
       if (selectedFile.size > 10 * 1024 * 1024) {
         setError('File size must be less than 10MB');
         return;
+      }
+
+      // Cleanup previous preview URL if exists
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
       }
 
       setFile(selectedFile);
@@ -70,6 +84,16 @@ export default function ContentManager() {
         setShowPreview(true);
       }
     }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const droppedFile = e.dataTransfer.files[0];
+    handleFileChange({ target: { files: [droppedFile] } } as any);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
   };
 
   const validateForm = () => {
@@ -95,7 +119,27 @@ export default function ContentManager() {
         return false;
       }
     }
+    if (!user?.isAdmin) {
+      setError('Admin access required');
+      return false;
+    }
     return true;
+  };
+
+  const resetForm = () => {
+    setTitle('');
+    setDescription('');
+    setFile(null);
+    setPollOptions(['', '']);
+    setPollEndDate('');
+    setShowPreview(false);
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+      setPreviewUrl('');
+    }
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -108,13 +152,78 @@ export default function ContentManager() {
     try {
       let mediaContent = undefined;
 
-      // Handle different content types
-      if (contentType === 'post') {
-        // Text post - no media content needed
-        mediaContent = undefined;
+      // Handle media upload if there's a file
+      if (file) {
+        // Handle media uploads
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('type', contentType);
+        formData.append('title', title);
+
+        try {
+          // Use XMLHttpRequest for progress tracking
+          const response = await new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            
+            xhr.upload.onprogress = (event) => {
+              const progress = Math.round((event.loaded / event.total) * 100);
+              setUploadProgress(progress);
+            };
+
+            xhr.onload = () => {
+              if (xhr.status >= 200 && xhr.status < 300) {
+                resolve(JSON.parse(xhr.responseText));
+              } else {
+                reject(new Error('Upload failed'));
+              }
+            };
+
+            xhr.onerror = () => reject(new Error('Upload failed'));
+
+            xhr.open('POST', '/api/upload');
+            xhr.setRequestHeader('Authorization', `Bearer ${user?.email}`);
+            xhr.send(formData);
+          });
+
+          const { url, thumbnailUrl } = response as { url: string; thumbnailUrl: string };
+
+          // Create appropriate media content object based on type
+          switch (contentType) {
+            case 'video':
+              mediaContent = {
+                video: {
+                  url,
+                  thumbnail: thumbnailUrl,
+                  duration: '0:00',
+                  title,
+                  quality: 'HD'
+                }
+              };
+              break;
+            case 'gallery':
+              mediaContent = {
+                gallery: {
+                  images: [url],
+                  captions: [description]
+                }
+              };
+              break;
+            case 'audio':
+              mediaContent = {
+                audio: {
+                  url,
+                  duration: '0:00',
+                  coverImage: thumbnailUrl
+                }
+              };
+              break;
+          }
+        } catch (error) {
+          throw new Error('Failed to upload media');
+        }
       } 
+      // Handle poll content
       else if (contentType === 'poll') {
-        // Create poll content
         const pollOptionsObject: Record<string, number> = {};
         pollOptions.forEach(option => {
           if (option.trim()) {
@@ -129,56 +238,6 @@ export default function ContentManager() {
             multipleChoice: false
           }
         };
-      }
-      else if (file) {
-        // Handle media uploads
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('type', contentType);
-        formData.append('title', title);
-
-        const uploadResponse = await fetch('/api/upload', {
-          method: 'POST',
-          body: formData
-        });
-
-        if (!uploadResponse.ok) {
-          throw new Error('Failed to upload media');
-        }
-
-        const { url, thumbnailUrl } = await uploadResponse.json();
-
-        // Create appropriate media content object based on type
-        switch (contentType) {
-          case 'video':
-            mediaContent = {
-              video: {
-                url,
-                thumbnail: thumbnailUrl,
-                duration: '0:00', // You'll need to implement duration detection
-                title,
-                quality: 'HD'
-              }
-            };
-            break;
-          case 'gallery':
-            mediaContent = {
-              gallery: {
-                images: [url],
-                captions: [description]
-              }
-            };
-            break;
-          case 'audio':
-            mediaContent = {
-              audio: {
-                url,
-                duration: '0:00', // You'll need to implement duration detection
-                coverImage: thumbnailUrl
-              }
-            };
-            break;
-        }
       }
 
       // Create the content object
@@ -209,16 +268,7 @@ export default function ContentManager() {
       setUploadedContent(updatedContent);
 
       // Reset form
-      setTitle('');
-      setDescription('');
-      setFile(null);
-      setPollOptions(['', '']);
-      setPollEndDate('');
-      setShowPreview(false);
-      setPreviewUrl('');
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
+      resetForm();
       
       alert('Content created successfully!');
 
@@ -240,10 +290,11 @@ export default function ContentManager() {
       // Delete media file if exists
       const content = uploadedContent.find(c => c.id === contentId);
       if (content?.mediaContent) {
-        await fetch('/api/media/delete', {
+        const response = await fetch('/api/media/delete', {
           method: 'DELETE',
           headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${user?.email}`
           },
           body: JSON.stringify({
             type: content.type,
@@ -252,6 +303,11 @@ export default function ContentManager() {
                  content.mediaContent.audio?.url
           })
         });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to delete media');
+        }
       }
 
       const updatedContent = deleteContent(contentId);
@@ -259,7 +315,7 @@ export default function ContentManager() {
       alert('Content deleted successfully!');
     } catch (err) {
       console.error('Delete error:', err);
-      setError('Failed to delete content');
+      setError(err instanceof Error ? err.message : 'Failed to delete content');
     }
   };
 
@@ -349,7 +405,7 @@ export default function ContentManager() {
                   type="text"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400 text-gray-900"
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400"
                   placeholder="Enter title..."
                   required
                 />
@@ -363,7 +419,7 @@ export default function ContentManager() {
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   rows={4}
-                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400 text-gray-900"
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400"
                   placeholder="Enter description..."
                   required
                 />
@@ -385,11 +441,10 @@ export default function ContentManager() {
                           newOptions[index] = e.target.value;
                           setPollOptions(newOptions);
                         }}
-                        className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400 text-gray-900"
+                        className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400"
                         placeholder={`Option ${index + 1}`}
                       />
-                      {index >= 2 && (
-                        <button
+                      {index >= 2 && (<button
                           type="button"
                           onClick={() => {
                             setPollOptions(pollOptions.filter((_, i) => i !== index));
@@ -418,7 +473,7 @@ export default function ContentManager() {
                       type="datetime-local"
                       value={pollEndDate}
                       onChange={(e) => setPollEndDate(e.target.value)}
-                      className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400 text-gray-900"
+                      className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400"
                       required={contentType === 'poll'}
                     />
                   </div>
@@ -431,7 +486,11 @@ export default function ContentManager() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Upload Content
                   </label>
-                  <div className="border-2 border-dashed rounded-lg p-8 text-center">
+                  <div
+                    className="border-2 border-dashed rounded-lg p-8 text-center"
+                    onDrop={handleDrop}
+                    onDragOver={handleDragOver}
+                  >
                     <input
                       ref={fileInputRef}
                       type="file"
@@ -449,6 +508,13 @@ export default function ContentManager() {
                         <p className="text-gray-600">
                           Uploading... {uploadProgress}%
                         </p>
+                        {/* Progress bar */}
+                        <div className="w-full h-2 bg-gray-200 rounded-full mt-2">
+                          <div 
+                            className="h-full bg-yellow-400 rounded-full transition-all duration-300"
+                            style={{ width: `${uploadProgress}%` }}
+                          />
+                        </div>
                       </div>
                     ) : (
                       <>
@@ -502,7 +568,7 @@ export default function ContentManager() {
                 <select
                   value={selectedTier}
                   onChange={(e) => setSelectedTier(e.target.value as 'basic' | 'premium' | 'allAccess')}
-                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400 text-gray-900"
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400"
                 >
                   <option value="basic">Basic</option>
                   <option value="premium">Premium</option>

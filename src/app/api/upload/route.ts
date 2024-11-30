@@ -11,12 +11,21 @@ const bunnyVideo = new BunnyVideoService({
 
 export async function POST(req: Request) {
   try {
-    // Verify admin authorization
+    // Get the authorization header
     const headersList = headers();
     const authHeader = headersList.get('authorization');
     
-    if (!authHeader?.includes('Bearer')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // Check if user email is present in the authorization header
+    const userEmail = authHeader?.split(' ')[1];
+    
+    // Check if user is admin (you might want to add more robust admin validation)
+    const isAdmin = userEmail === process.env.NEXT_PUBLIC_ADMIN_EMAIL;
+    
+    if (!isAdmin) {
+      return NextResponse.json(
+        { error: 'Unauthorized - Admin access required' }, 
+        { status: 401 }
+      );
     }
 
     const formData = await req.formData();
@@ -37,10 +46,9 @@ export async function POST(req: Request) {
     if (type === 'video') {
       // Upload video to Bunny.net
       url = await bunnyVideo.uploadVideo(file, title);
-      thumbnailUrl = `${process.env.NEXT_PUBLIC_BUNNY_CDN_URL}/thumbnail.jpg`; // Adjust based on your CDN setup
+      thumbnailUrl = `${process.env.NEXT_PUBLIC_BUNNY_CDN_URL}/thumbnail.jpg`;
     } else {
-      // For other media types, upload to your preferred storage
-      // This is a placeholder - implement your preferred storage solution
+      // For other media types, use placeholder for now
       url = '/api/placeholder/800/600';
       thumbnailUrl = '/api/placeholder/400/300';
     }
