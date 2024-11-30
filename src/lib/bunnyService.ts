@@ -18,6 +18,7 @@ interface BunnyVideoResponse {
 
 export class BunnyVideoService {
   private config: BunnyConfig;
+  private readonly API_BASE_URL = 'https://video.bunnycdn.com/library';
 
   constructor(config: BunnyConfig) {
     this.config = config;
@@ -28,7 +29,7 @@ export class BunnyVideoService {
       // Step 1: Create video in Bunny.net library
       console.log('Creating video in Bunny.net library:', { title });
       const createResponse = await fetch(
-        `https://video.bunnycdn.com/library/${this.config.libraryId}/videos`,
+        `${this.API_BASE_URL}/${this.config.libraryId}/videos`,
         {
           method: 'POST',
           headers: {
@@ -50,7 +51,7 @@ export class BunnyVideoService {
       console.log('Uploading video file to Bunny.net:', { guid });
       const arrayBuffer = await file.arrayBuffer();
       const uploadResponse = await fetch(
-        `https://video.bunnycdn.com/library/${this.config.libraryId}/videos/${guid}`,
+        `${this.API_BASE_URL}/${this.config.libraryId}/videos/${guid}`,
         {
           method: 'PUT',
           headers: {
@@ -81,7 +82,7 @@ export class BunnyVideoService {
     try {
       console.log('Deleting video from Bunny.net:', { guid });
       const response = await fetch(
-        `https://video.bunnycdn.com/library/${this.config.libraryId}/videos/${guid}`,
+        `${this.API_BASE_URL}/${this.config.libraryId}/videos/${guid}`,
         {
           method: 'DELETE',
           headers: {
@@ -106,7 +107,7 @@ export class BunnyVideoService {
     try {
       console.log('Fetching video info from Bunny.net:', { guid });
       const response = await fetch(
-        `https://video.bunnycdn.com/library/${this.config.libraryId}/videos/${guid}`,
+        `${this.API_BASE_URL}/${this.config.libraryId}/videos/${guid}`,
         {
           headers: {
             'AccessKey': this.config.apiKey
@@ -132,7 +133,7 @@ export class BunnyVideoService {
     try {
       console.log('Updating video title in Bunny.net:', { guid, title });
       const response = await fetch(
-        `https://video.bunnycdn.com/library/${this.config.libraryId}/videos/${guid}`,
+        `${this.API_BASE_URL}/${this.config.libraryId}/videos/${guid}`,
         {
           method: 'POST',
           headers: {
@@ -159,7 +160,7 @@ export class BunnyVideoService {
     try {
       console.log('Fetching video list from Bunny.net:', { page, perPage });
       const response = await fetch(
-        `https://video.bunnycdn.com/library/${this.config.libraryId}/videos?page=${page}&itemsPerPage=${perPage}`,
+        `${this.API_BASE_URL}/${this.config.libraryId}/videos?page=${page}&itemsPerPage=${perPage}`,
         {
           headers: {
             'AccessKey': this.config.apiKey
@@ -184,7 +185,7 @@ export class BunnyVideoService {
 
 // Export a singleton instance with environment variables
 export const bunnyVideo = new BunnyVideoService({
-  apiKey: process.env.NEXT_PUBLIC_BUNNY_API_KEY || '',
-  libraryId: process.env.NEXT_PUBLIC_BUNNY_LIBRARY_ID || '',
-  cdnUrl: process.env.NEXT_PUBLIC_BUNNY_CDN_URL || ''
+  apiKey: process.env.BUNNY_API_KEY || '',
+  libraryId: process.env.BUNNY_LIBRARY_ID || '',
+  cdnUrl: process.env.BUNNY_CDN_URL || ''
 });

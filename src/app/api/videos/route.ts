@@ -1,97 +1,78 @@
 // src/app/api/videos/route.ts
+
 import { NextResponse } from 'next/server';
 import { headers } from 'next/headers';
-import { createVideo, uploadVideoFile } from '@/lib/videoService';
+import { BunnyVideoService } from '@/lib/bunnyService';
+import { ADMIN_CREDENTIALS } from '@/lib/adminConfig';
 
-export async function POST(req: Request) {
-  try {
-    // Get the authorization header
-    const headersList = headers();
-    const authHeader = headersList.get('authorization');
-    
-    // Check for admin authentication
-    if (!authHeader || !authHeader.includes('Bearer')) {
-      return NextResponse.json(
-        { error: 'Unauthorized' }, 
-        { status: 401 }
-      );
-    }
+// Initialize BunnyVideoService
+const bunnyVideo = new BunnyVideoService({
+  apiKey: process.env.BUNNY_API_KEY || '',
+  libraryId: process.env.BUNNY_LIBRARY_ID || '',
+  cdnUrl: process.env.BUNNY_CDN_URL || ''
+});
 
-    // Get the form data
-    const formData = await req.formData();
-    const title = formData.get('title') as string;
-    const description = formData.get('description') as string;
-    const file = formData.get('file') as File;
-    const tier = formData.get('tier') as string;
-
-    // Validate inputs
-    if (!file || !title || !description || !tier) {
-      return NextResponse.json(
-        { error: 'Missing required fields' },
-        { status: 400 }
-      );
-    }
-
-    // Create video in SproutVideo
-    const createResult = await createVideo(title, description);
-    
-    if (!createResult.token) {
-      throw new Error('Failed to get video token');
-    }
-
-    // Upload the video file
-    const uploadResult = await uploadVideoFile(createResult.token, file);
-
-    // Return the response
-    return NextResponse.json({
-      success: true,
-      video: {
-        id: uploadResult.id,
-        title,
-        description,
-        tier,
-        videoUrl: uploadResult.video_url,
-        thumbnailUrl: uploadResult.thumbnail_url,
-        duration: uploadResult.duration,
-        createdAt: new Date().toISOString()
-      }
-    });
-
-  } catch (error) {
-    console.error('Video upload error:', error);
-    return NextResponse.json(
-      { error: 'Failed to upload video' },
-      { status: 500 }
-    );
+// Verify admin authentication
+const verifyAdmin = (headersList: Headers) => {
+  const authHeader = headersList.get('authorization');
+  
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    throw new Error('Missing or invalid authorization header');
   }
-}
+  
+  const userEmail = authHeader.split('Bearer ')[1];
+  if (userEmail !== ADMIN_CREDENTIALS.email) {
+    throw new Error('Unauthorized - Admin access required');
+  }
+};
 
 // GET endpoint to fetch all videos
 export async function GET(req: Request) {
   try {
-    const headersList = headers();
-    const authHeader = headersList.get('authorization');
-    
-    if (!authHeader || !authHeader.includes('Bearer')) {
+    // Validate environment variables
+    if (!process.env.BUNNY_API_KEY || !process.env.BUNNY_LIBRARY_ID) {
+      console.error('Missing required environment variables');
       return NextResponse.json(
-        { error: 'Unauthorized' }, 
+        { error: 'Server configuration error' },
+        { status: 500 }
+      );
+    }
+
+    // Verify admin authentication
+    const headersList = headers();
+    try {
+      verifyAdmin(headersList);
+    } catch (error) {
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message : 'Authentication error' },
         { status: 401 }
       );
     }
 
-    // Get the videos from SproutVideo
-    const response = await fetch('https://api.sproutvideo.com/v1/videos', {
-      headers: {
-        'SproutVideo-Api-Key': process.env.SPROUTVIDEO_API_KEY!,
-      },
+    // Parse query parameters
+    const url = new URL(req.url);
+    const page = parseInt(url.searchParams.get('page') || '1');
+    const perPage = parseInt(url.searchParams.get('perPage') || '100');
+
+    // Get videos from Bunny.net
+    const videos = await bunnyVideo.listVideos(page, perPage);
+
+    // Format the response
+    const formattedVideos = videos.map(video => ({
+      id: video.guid,
+      title: video.title,
+      url: `${process.env.BUNNY_CDN_URL}/${video.guid}/play.mp4`,
+      thumbnail: `${process.env.BUNNY_CDN_URL}/${video.guid}/thumbnail.jpg`,
+      dateUploaded: video.dateUploaded,
+      views: video.views,
+      status: video.status,
+      size: video.storageSize
+    }));
+
+    return NextResponse.json({
+      success: true,
+      videos: formattedVideos
     });
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch videos');
-    }
-
-    const videos = await response.json();
-    return NextResponse.json({ videos });
 
   } catch (error) {
     console.error('Error fetching videos:', error);
@@ -105,16 +86,27 @@ export async function GET(req: Request) {
 // DELETE endpoint to remove a video
 export async function DELETE(req: Request) {
   try {
-    const headersList = headers();
-    const authHeader = headersList.get('authorization');
-    
-    if (!authHeader || !authHeader.includes('Bearer')) {
+    // Validate environment variables
+    if (!process.env.BUNNY_API_KEY || !process.env.BUNNY_LIBRARY_ID) {
+      console.error('Missing required environment variables');
       return NextResponse.json(
-        { error: 'Unauthorized' }, 
+        { error: 'Server configuration error' },
+        { status: 500 }
+      );
+    }
+
+    // Verify admin authentication
+    const headersList = headers();
+    try {
+      verifyAdmin(headersList);
+    } catch (error) {
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message : 'Authentication error' },
         { status: 401 }
       );
     }
 
+    // Get video ID from request body
     const { videoId } = await req.json();
 
     if (!videoId) {
@@ -124,19 +116,13 @@ export async function DELETE(req: Request) {
       );
     }
 
-    // Delete from SproutVideo
-    const response = await fetch(`https://api.sproutvideo.com/v1/videos/${videoId}`, {
-      method: 'DELETE',
-      headers: {
-        'SproutVideo-Api-Key': process.env.SPROUTVIDEO_API_KEY!,
-      },
+    // Delete video from Bunny.net
+    await bunnyVideo.deleteVideo(videoId);
+
+    return NextResponse.json({
+      success: true,
+      message: 'Video deleted successfully'
     });
-
-    if (!response.ok) {
-      throw new Error('Failed to delete video');
-    }
-
-    return NextResponse.json({ success: true });
 
   } catch (error) {
     console.error('Error deleting video:', error);
@@ -145,4 +131,68 @@ export async function DELETE(req: Request) {
       { status: 500 }
     );
   }
+}
+
+// PUT endpoint to update video details
+export async function PUT(req: Request) {
+  try {
+    // Validate environment variables
+    if (!process.env.BUNNY_API_KEY || !process.env.BUNNY_LIBRARY_ID) {
+      console.error('Missing required environment variables');
+      return NextResponse.json(
+        { error: 'Server configuration error' },
+        { status: 500 }
+      );
+    }
+
+    // Verify admin authentication
+    const headersList = headers();
+    try {
+      verifyAdmin(headersList);
+    } catch (error) {
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message : 'Authentication error' },
+        { status: 401 }
+      );
+    }
+
+    // Get video details from request body
+    const { videoId, title } = await req.json();
+
+    if (!videoId || !title) {
+      return NextResponse.json(
+        { error: 'Video ID and title are required' },
+        { status: 400 }
+      );
+    }
+
+    // Update video title in Bunny.net
+    await bunnyVideo.updateVideoTitle(videoId, title);
+
+    return NextResponse.json({
+      success: true,
+      message: 'Video updated successfully'
+    });
+
+  } catch (error) {
+    console.error('Error updating video:', error);
+    return NextResponse.json(
+      { error: 'Failed to update video' },
+      { status: 500 }
+    );
+  }
+}
+
+// Handle OPTIONS requests for CORS
+export async function OPTIONS(request: Request) {
+  return NextResponse.json(
+    {},
+    {
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, DELETE, PUT, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+      }
+    }
+  );
 }

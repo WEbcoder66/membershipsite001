@@ -153,95 +153,64 @@ export default function ContentManager() {
     try {
       let mediaContent = undefined;
 
-       // Handle media upload if there's a file
-    if (file) {
-      // Handle media uploads
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('type', contentType);
-      formData.append('title', title);
+      // Handle media upload if there's a file
+      if (file) {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('type', contentType);
+        formData.append('title', title);
 
-      // Log the auth header being sent (for debugging)
-      console.log('Sending request with auth:', user?.email);
+        // Log the auth header being sent (for debugging)
+        console.log('Sending request with auth:', user?.email);
 
-      const uploadResponse = await fetch('/api/upload', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${user?.email}`,
-        },
-        body: formData
-      });
+        const uploadResponse = await fetch('/api/upload', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${user?.email}`,
+          },
+          body: formData
+        });
 
-      if (!uploadResponse.ok) {
-        const errorData = await uploadResponse.json();
-        console.error('Upload response:', errorData);
-        throw new Error(errorData.error || 'Failed to upload media');
-      }
+        if (!uploadResponse.ok) {
+          const errorData = await uploadResponse.json();
+          console.error('Upload response:', errorData);
+          throw new Error(errorData.error || 'Failed to upload media');
+        }
 
-      const { url, thumbnailUrl } = await uploadResponse.json();
+        const { url, thumbnailUrl } = await uploadResponse.json();
 
-        try {
-          // Use XMLHttpRequest for progress tracking
-          const response = await new Promise((resolve, reject) => {
-            const xhr = new XMLHttpRequest();
-            
-            xhr.upload.onprogress = (event) => {
-              const progress = Math.round((event.loaded / event.total) * 100);
-              setUploadProgress(progress);
-            };
-
-            xhr.onload = () => {
-              if (xhr.status >= 200 && xhr.status < 300) {
-                resolve(JSON.parse(xhr.responseText));
-              } else {
-                reject(new Error('Upload failed'));
+        // Create appropriate media content object based on type
+        switch (contentType) {
+          case 'video':
+            mediaContent = {
+              video: {
+                url,
+                thumbnail: thumbnailUrl,
+                duration: '0:00',
+                title,
+                quality: 'HD'
               }
             };
-
-            xhr.onerror = () => reject(new Error('Upload failed'));
-
-            xhr.open('POST', '/api/upload');
-            xhr.setRequestHeader('Authorization', `Bearer ${user?.email}`);
-            xhr.send(formData);
-          });
-
-          const { url, thumbnailUrl } = response as { url: string; thumbnailUrl: string };
-
-          // Create appropriate media content object based on type
-          switch (contentType) {
-            case 'video':
-              mediaContent = {
-                video: {
-                  url,
-                  thumbnail: thumbnailUrl,
-                  duration: '0:00',
-                  title,
-                  quality: 'HD'
-                }
-              };
-              break;
-            case 'gallery':
-              mediaContent = {
-                gallery: {
-                  images: [url],
-                  captions: [description]
-                }
-              };
-              break;
-            case 'audio':
-              mediaContent = {
-                audio: {
-                  url,
-                  duration: '0:00',
-                  coverImage: thumbnailUrl
-                }
-              };
-              break;
-          }
-        } catch (error) {
-          throw new Error('Failed to upload media');
+            break;
+          case 'gallery':
+            mediaContent = {
+              gallery: {
+                images: [url],
+                captions: [description]
+              }
+            };
+            break;
+          case 'audio':
+            mediaContent = {
+              audio: {
+                url,
+                duration: '0:00',
+                coverImage: thumbnailUrl
+              }
+            };
+            break;
         }
-      } 
+      }
       // Handle poll content
       else if (contentType === 'poll') {
         const pollOptionsObject: Record<string, number> = {};
@@ -403,7 +372,7 @@ export default function ContentManager() {
                       key={type}
                       type="button"
                       onClick={() => setContentType(type as any)}
-                      className={`p-4 rounded-lg border-2 flex flex-col items-center gap-2 ${
+                      className={`p-4 rounded-lg border-2 flex flex-col items-center gap-2 transition-colors ${
                         contentType === type
                           ? 'border-yellow-400 bg-yellow-50 text-black'
                           : 'border-gray-200 text-gray-600 hover:border-yellow-200'
@@ -464,11 +433,10 @@ export default function ContentManager() {
                         className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400"
                         placeholder={`Option ${index + 1}`}
                       />
-                      {index >= 2 && (<button
+                      {index >= 2 && (
+                        <button
                           type="button"
-                          onClick={() => {
-                            setPollOptions(pollOptions.filter((_, i) => i !== index));
-                          }}
+                          onClick={() => setPollOptions(pollOptions.filter((_, i) => i !== index))}
                           className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
                         >
                           <X className="w-5 h-5" />
@@ -478,8 +446,7 @@ export default function ContentManager() {
                   ))}
                   <button
                     type="button"
-                    onClick={() => setPollOptions([...pollOptions, ''])}
-                    className="mt-2 flex items-center gap-2 text-yellow-600 hover:text-yellow-700"
+                    onClick={() => setPollOptions([...pollOptions, ''])}className="mt-2 flex items-center gap-2 text-yellow-600 hover:text-yellow-700"
                   >
                     <PlusCircle className="w-4 h-4" />
                     Add Option
@@ -612,7 +579,7 @@ export default function ContentManager() {
 
         {activeTab === 'manage' && (
           <div className="p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-6">Manage Content</h2>
+            <h2 className="text-xl font-bold mb-6">Manage Content</h2>
             {uploadedContent.length === 0 ? (
               <p className="text-center text-gray-600 py-8">No content uploaded yet.</p>
             ) : (
