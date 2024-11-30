@@ -153,13 +153,32 @@ export default function ContentManager() {
     try {
       let mediaContent = undefined;
 
-      // Handle media upload if there's a file
-      if (file) {
-        // Handle media uploads
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('type', contentType);
-        formData.append('title', title);
+       // Handle media upload if there's a file
+    if (file) {
+      // Handle media uploads
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('type', contentType);
+      formData.append('title', title);
+
+      // Log the auth header being sent (for debugging)
+      console.log('Sending request with auth:', user?.email);
+
+      const uploadResponse = await fetch('/api/upload', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${user?.email}`,
+        },
+        body: formData
+      });
+
+      if (!uploadResponse.ok) {
+        const errorData = await uploadResponse.json();
+        console.error('Upload response:', errorData);
+        throw new Error(errorData.error || 'Failed to upload media');
+      }
+
+      const { url, thumbnailUrl } = await uploadResponse.json();
 
         try {
           // Use XMLHttpRequest for progress tracking

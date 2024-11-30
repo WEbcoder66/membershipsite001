@@ -3,11 +3,7 @@ import { headers } from 'next/headers';
 import { BunnyVideoService } from '@/lib/bunnyService';
 import { ADMIN_CREDENTIALS } from '@/lib/adminConfig';
 
-// Configuration for the route using the new method
-export const runtime = 'edge'; // 'nodejs' (default) | 'edge'
-export const dynamic = 'force-dynamic'; // 'auto' | 'force-dynamic' | 'error' | 'force-static'
-
-// Initialize BunnyVideoService with environment variables
+// Initialize BunnyVideoService
 const bunnyVideo = new BunnyVideoService({
   apiKey: process.env.BUNNY_API_KEY || '',
   libraryId: process.env.BUNNY_LIBRARY_ID || '',
@@ -16,30 +12,58 @@ const bunnyVideo = new BunnyVideoService({
 
 export async function POST(req: Request) {
   try {
-    // Get the authorization header
+    // Get and validate authorization header
     const headersList = headers();
     const authHeader = headersList.get('authorization');
     
-    // Check if user email is present in the authorization header
-    const userEmail = authHeader?.split(' ')[1];
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.log('Missing or invalid auth header');
+      return NextResponse.json(
+        { error: 'Missing or invalid authorization header' }, 
+        { status: 401 }
+      );
+    }
     
-    // Check if user is admin
-    if (!userEmail || userEmail !== ADMIN_CREDENTIALS.email) {
-      console.log('Unauthorized attempt:', userEmail);
+    // Extract email from Bearer token
+    const userEmail = authHeader.split('Bearer ')[1];
+    
+    // Debug log for authentication
+    console.log('Auth check:', {
+      receivedEmail: userEmail,
+      expectedEmail: ADMIN_CREDENTIALS.email,
+      isMatch: userEmail === ADMIN_CREDENTIALS.email
+    });
+
+    // Verify admin credentials
+    if (userEmail !== ADMIN_CREDENTIALS.email) {
       return NextResponse.json(
         { error: 'Unauthorized - Admin access required' }, 
         { status: 401 }
       );
     }
 
-    // Parse the FormData
+    // Check Bunny.net configuration
+    if (!process.env.BUNNY_API_KEY || !process.env.BUNNY_LIBRARY_ID || !process.env.BUNNY_CDN_URL) {
+      console.error('Missing Bunny.net configuration');
+      return NextResponse.json(
+        { error: 'Server configuration error' },
+        { status: 500 }
+      );
+    }
+
+    // Parse form data
     const formData = await req.formData();
     const file = formData.get('file') as File;
     const type = formData.get('type') as string;
     const title = formData.get('title') as string;
 
+    // Validate form data
     if (!file || !type || !title) {
-      console.error('Missing fields:', { file: !!file, type, title });
+      console.error('Missing required fields:', { 
+        hasFile: !!file, 
+        type, 
+        title 
+      });
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
@@ -58,35 +82,84 @@ export async function POST(req: Request) {
     let url = '';
     let thumbnailUrl = '';
 
-    if (type === 'video') {
-      try {
-        console.log('Uploading video to Bunny.net:', { title, size: file.size });
-        url = await bunnyVideo.uploadVideo(file, title);
-        const videoId = url.split('/').slice(-2)[0];
-        thumbnailUrl = `${process.env.BUNNY_CDN_URL}/${videoId}/thumbnail.jpg`;
-        console.log('Video upload successful:', { url, thumbnailUrl });
-      } catch (uploadError) {
-        console.error('Bunny.net upload error:', uploadError);
+    // Handle different content types
+    switch (type) {
+      case 'video':
+        try {
+          console.log('Processing video upload:', { 
+            title, 
+            size: file.size 
+          });
+          url = await bunnyVideo.uploadVideo(file, title);
+          
+          // Extract video ID and create thumbnail URL
+          const videoId = url.split('/').slice(-2)[0];
+          thumbnailUrl = `${process.env.BUNNY_CDN_URL}/${videoId}/thumbnail.jpg`;
+          
+          console.log('Video upload successful:', { 
+            url, 
+            thumbnailUrl 
+          });
+        } catch (error) {
+          console.error('Bunny.net upload error:', error);
+          return NextResponse.json(
+            { error: 'Failed to upload video to Bunny.net' },
+            { status: 500 }
+          );
+        }
+        break;
+
+      case 'image':
+      case 'gallery':
+        try {
+          // Convert File to Buffer for processing
+          const arrayBuffer = await file.arrayBuffer();
+          const buffer = Buffer.from(arrayBuffer);
+
+          // TODO: Implement image storage
+          // For now, using placeholders
+          url = '/api/placeholder/800/600';
+          thumbnailUrl = '/api/placeholder/400/300';
+          
+          console.log('Image processed:', { url, thumbnailUrl });
+        } catch (error) {
+          console.error('Image processing error:', error);
+          return NextResponse.json(
+            { error: 'Failed to process image' },
+            { status: 500 }
+          );
+        }
+        break;
+
+      case 'audio':
+        try {
+          // Convert File to Buffer for processing
+          const arrayBuffer = await file.arrayBuffer();
+          const buffer = Buffer.from(arrayBuffer);
+
+          // TODO: Implement audio storage
+          // For now, using placeholders
+          url = '/api/placeholder/audio';
+          thumbnailUrl = '/api/placeholder/400/300';
+          
+          console.log('Audio processed:', { url });
+        } catch (error) {
+          console.error('Audio processing error:', error);
+          return NextResponse.json(
+            { error: 'Failed to process audio' },
+            { status: 500 }
+          );
+        }
+        break;
+
+      default:
         return NextResponse.json(
-          { error: 'Failed to upload video to Bunny.net' },
-          { status: 500 }
+          { error: 'Unsupported content type' },
+          { status: 400 }
         );
-      }
-    } else if (type === 'image' || type === 'gallery') {
-      // Placeholder for image uploads
-      url = '/api/placeholder/800/600';
-      thumbnailUrl = '/api/placeholder/400/300';
-    } else if (type === 'audio') {
-      // Placeholder for audio uploads
-      url = '/api/placeholder/audio';
-      thumbnailUrl = '/api/placeholder/400/300';
-    } else {
-      return NextResponse.json(
-        { error: 'Unsupported content type' },
-        { status: 400 }
-      );
     }
 
+    // Return success response
     return NextResponse.json({
       success: true,
       url,
@@ -96,6 +169,7 @@ export async function POST(req: Request) {
     });
 
   } catch (error) {
+    // Log the error and return safe response
     console.error('Upload route error:', error);
     return NextResponse.json(
       { 
@@ -108,6 +182,7 @@ export async function POST(req: Request) {
 }
 
 export async function OPTIONS(request: Request) {
+  // Handle CORS preflight requests
   return NextResponse.json(
     {},
     {
