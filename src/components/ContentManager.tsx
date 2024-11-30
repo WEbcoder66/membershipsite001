@@ -1,9 +1,9 @@
+// src/components/ContentManager.tsx
 'use client';
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { Content, MembershipTier } from '@/lib/types';
+import { Content } from '@/lib/types';
 import { getAllContent, addContent, deleteContent } from '@/lib/contentService';
-import { createVideo, uploadVideoFile } from '@/lib/videoService';
 import { 
   Upload,
   Image as ImageIcon,
@@ -27,7 +27,7 @@ export default function ContentManager() {
   const [contentType, setContentType] = useState<'post' | 'video' | 'gallery' | 'audio' | 'poll'>('post');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [selectedTier, setSelectedTier] = useState<MembershipTier>('basic');
+  const [selectedTier, setSelectedTier] = useState<'basic' | 'premium' | 'allAccess'>('basic');
   const [file, setFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState('');
@@ -35,12 +35,19 @@ export default function ContentManager() {
   const [uploadedContent, setUploadedContent] = useState<Content[]>([]);
   const [pollOptions, setPollOptions] = useState<string[]>(['', '']);
   const [pollEndDate, setPollEndDate] = useState('');
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Load existing content on mount
   useEffect(() => {
-    const content = getAllContent();
-    setUploadedContent(content);
+    try {
+      const content = getAllContent();
+      setUploadedContent(content);
+    } catch (err) {
+      console.error('Error loading content:', err);
+      setError('Failed to load existing content');
+    }
   }, []);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -55,6 +62,13 @@ export default function ContentManager() {
 
       setFile(selectedFile);
       setError('');
+
+      // Create preview URL for media files
+      if (selectedFile.type.startsWith('image/') || selectedFile.type.startsWith('video/')) {
+        const url = URL.createObjectURL(selectedFile);
+        setPreviewUrl(url);
+        setShowPreview(true);
+      }
     }
   };
 
@@ -93,12 +107,14 @@ export default function ContentManager() {
     
     try {
       let mediaContent = undefined;
-      
+
+      // Handle different content types
       if (contentType === 'post') {
-        // Handle text post
+        // Text post - no media content needed
         mediaContent = undefined;
-      } else if (contentType === 'poll') {
-        // Handle poll
+      } 
+      else if (contentType === 'poll') {
+        // Create poll content
         const pollOptionsObject: Record<string, number> = {};
         pollOptions.forEach(option => {
           if (option.trim()) {
@@ -113,39 +129,59 @@ export default function ContentManager() {
             multipleChoice: false
           }
         };
-      } else if (contentType === 'video' && file) {
-        // Handle video upload
-        const { token } = await createVideo(title, description);
-        const uploadResult = await uploadVideoFile(token, file);
-        
-        mediaContent = {
-          video: {
-            url: uploadResult.video_url,
-            thumbnail: uploadResult.thumbnail_url,
-            duration: uploadResult.duration || '0:00',
-            title: title,
-            quality: 'HD'
-          }
-        };
-      } else if (contentType === 'audio' && file) {
-        // Handle audio upload (demo storage)
-        mediaContent = {
-          audio: {
-            url: URL.createObjectURL(file),
-            duration: '0:00',
-            coverImage: '/api/placeholder/400/400'
-          }
-        };
-      } else if (contentType === 'gallery' && file) {
-        // Handle gallery (demo storage)
-        mediaContent = {
-          gallery: {
-            images: [URL.createObjectURL(file)],
-            captions: [description]
-          }
-        };
+      }
+      else if (file) {
+        // Handle media uploads
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('type', contentType);
+        formData.append('title', title);
+
+        const uploadResponse = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData
+        });
+
+        if (!uploadResponse.ok) {
+          throw new Error('Failed to upload media');
+        }
+
+        const { url, thumbnailUrl } = await uploadResponse.json();
+
+        // Create appropriate media content object based on type
+        switch (contentType) {
+          case 'video':
+            mediaContent = {
+              video: {
+                url,
+                thumbnail: thumbnailUrl,
+                duration: '0:00', // You'll need to implement duration detection
+                title,
+                quality: 'HD'
+              }
+            };
+            break;
+          case 'gallery':
+            mediaContent = {
+              gallery: {
+                images: [url],
+                captions: [description]
+              }
+            };
+            break;
+          case 'audio':
+            mediaContent = {
+              audio: {
+                url,
+                duration: '0:00', // You'll need to implement duration detection
+                coverImage: thumbnailUrl
+              }
+            };
+            break;
+        }
       }
 
+      // Create the content object
       const newContent: Content = {
         id: Date.now().toString(),
         type: contentType,
@@ -168,6 +204,7 @@ export default function ContentManager() {
         category: contentType.charAt(0).toUpperCase() + contentType.slice(1)
       };
 
+      // Add content to storage
       const updatedContent = addContent(newContent);
       setUploadedContent(updatedContent);
 
@@ -177,6 +214,8 @@ export default function ContentManager() {
       setFile(null);
       setPollOptions(['', '']);
       setPollEndDate('');
+      setShowPreview(false);
+      setPreviewUrl('');
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -184,7 +223,7 @@ export default function ContentManager() {
       alert('Content created successfully!');
 
     } catch (err) {
-      console.error('Upload error:', err);
+      console.error('Content creation error:', err);
       setError(err instanceof Error ? err.message : 'Failed to create content');
     } finally {
       setIsUploading(false);
@@ -198,6 +237,23 @@ export default function ContentManager() {
     }
 
     try {
+      // Delete media file if exists
+      const content = uploadedContent.find(c => c.id === contentId);
+      if (content?.mediaContent) {
+        await fetch('/api/media/delete', {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            type: content.type,
+            url: content.mediaContent.video?.url || 
+                 content.mediaContent.gallery?.images[0] ||
+                 content.mediaContent.audio?.url
+          })
+        });
+      }
+
       const updatedContent = deleteContent(contentId);
       setUploadedContent(updatedContent);
       alert('Content deleted successfully!');
@@ -284,7 +340,7 @@ export default function ContentManager() {
                 </div>
               </div>
 
-              {/* Title */}
+              {/* Title & Description */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Title
@@ -293,13 +349,12 @@ export default function ContentManager() {
                   type="text"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400"
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400 text-gray-900"
                   placeholder="Enter title..."
                   required
                 />
               </div>
 
-              {/* Description */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Description
@@ -308,7 +363,7 @@ export default function ContentManager() {
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   rows={4}
-                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400"
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400 text-gray-900"
                   placeholder="Enter description..."
                   required
                 />
@@ -330,7 +385,7 @@ export default function ContentManager() {
                           newOptions[index] = e.target.value;
                           setPollOptions(newOptions);
                         }}
-                        className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400"
+                        className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400 text-gray-900"
                         placeholder={`Option ${index + 1}`}
                       />
                       {index >= 2 && (
@@ -363,7 +418,7 @@ export default function ContentManager() {
                       type="datetime-local"
                       value={pollEndDate}
                       onChange={(e) => setPollEndDate(e.target.value)}
-                      className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400"
+                      className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400 text-gray-900"
                       required={contentType === 'poll'}
                     />
                   </div>
@@ -380,13 +435,13 @@ export default function ContentManager() {
                     <input
                       ref={fileInputRef}
                       type="file"
-                      onChange={handleFileChange}
                       accept={
                         contentType === 'video' ? 'video/*' :
                         contentType === 'gallery' ? 'image/*' :
                         contentType === 'audio' ? 'audio/*' : undefined
                       }
                       className="hidden"
+                      onChange={handleFileChange}
                     />
                     {isUploading ? (
                       <div className="flex flex-col items-center">
@@ -411,6 +466,31 @@ export default function ContentManager() {
                       </>
                     )}
                   </div>
+
+                  {/* File Preview */}
+                  {showPreview && previewUrl && (
+                    <div className="mt-4">
+                      {contentType === 'video' ? (
+                        <video
+                          src={previewUrl}
+                          className="max-h-48 mx-auto rounded"
+                          controls
+                        />
+                      ) : contentType === 'gallery' ? (
+                        <img
+                          src={previewUrl}
+                          alt="Preview"
+                          className="max-h-48 mx-auto rounded object-contain"
+                        />
+                      ) : contentType === 'audio' && (
+                        <audio
+                          src={previewUrl}
+                          className="w-full mt-2"
+                          controls
+                        />
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -421,8 +501,8 @@ export default function ContentManager() {
                 </label>
                 <select
                   value={selectedTier}
-                  onChange={(e) => setSelectedTier(e.target.value as MembershipTier)}
-                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400"
+                  onChange={(e) => setSelectedTier(e.target.value as 'basic' | 'premium' | 'allAccess')}
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400 text-gray-900"
                 >
                   <option value="basic">Basic</option>
                   <option value="premium">Premium</option>
