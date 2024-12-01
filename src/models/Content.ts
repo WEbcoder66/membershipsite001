@@ -39,6 +39,18 @@ const ContentSchema = new mongoose.Schema({
       thumbnail: String,
       duration: String,
       title: String
+    },
+    gallery: {
+      images: [String]
+    },
+    audio: {
+      url: String,
+      duration: String
+    },
+    poll: {
+      options: Object,
+      endDate: Date,
+      multipleChoice: Boolean
     }
   },
   tags: [String],
