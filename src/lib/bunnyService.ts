@@ -34,40 +34,33 @@ export class BunnyVideoService {
   private async makeRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = `${this.API_BASE_URL}/${this.config.libraryId}${endpoint}`;
     
-    // Log request details
-    console.log('Making Bunny.net request:', {
-      url,
-      method: options.method || 'GET',
-      hasBody: !!options.body,
+    // Add debug logging
+    console.log('Making request to:', url, {
+      method: options.method,
       headers: options.headers
     });
+
     const headers = {
       'AccessKey': this.config.apiKey,
       ...options.headers
     };
-    try {
-      const response = await fetch(url, { ...options, headers });
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Bunny.net API error response:', {
-          status: response.status,
-          statusText: response.statusText,
-          errorText
-        });
-        throw new Error(`Bunny.net API error (${response.status}): ${errorText}`);
-      }
-      const data = await response.json();
-      console.log('Bunny.net API success response:', data);
-      return data;
-    } catch (error) {
-      console.error('Bunny.net request failed:', error);
-      throw error;
+
+    const response = await fetch(url, { ...options, headers });
+    
+    if (!response.ok) {
+      const error = await response.text();
+      console.error('Bunny.net API error:', {
+        status: response.status,
+        url,
+        error
+      });
+      throw new Error(`Bunny.net API error (${response.status}): ${error}`);
     }
+    return response.json();
   }
 
   async createVideo(title: string): Promise<{ guid: string }> {
-    return this.makeRequest<{ guid: string }>('', {
+    return this.makeRequest<{ guid: string }>('/videos', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -76,11 +69,20 @@ export class BunnyVideoService {
     });
   }
 
-  async uploadVideo(guid: string, fileData: Buffer | ArrayBuffer): Promise<void> {
-    await this.makeRequest<void>(`/videos/${guid}`, {
+  async uploadVideo(guid: string, fileData: ArrayBuffer): Promise<void> {
+    const url = `${this.API_BASE_URL}/${this.config.libraryId}/videos/${guid}`;
+    const response = await fetch(url, {
       method: 'PUT',
+      headers: {
+        'AccessKey': this.config.apiKey,
+        'Content-Type': 'application/octet-stream'
+      },
       body: fileData
     });
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Failed to upload video: ${error}`);
+    }
   }
 
   async deleteVideo(guid: string): Promise<void> {

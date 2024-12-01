@@ -3,7 +3,7 @@ import { headers } from 'next/headers';
 import { bunnyVideo } from '@/lib/bunnyService';
 import { ADMIN_CREDENTIALS } from '@/lib/adminConfig';
 
-export const maxDuration = 300; // 5 minutes timeout
+export const maxDuration = 60; // Reduced timeout to 60 seconds
 export const dynamic = 'force-dynamic';
 
 // Verify admin authentication
@@ -23,9 +23,7 @@ const verifyAdmin = (headersList: Headers) => {
 // POST endpoint to upload a video
 export async function POST(req: Request) {
   try {
-    // Add debug logging
     console.log('Starting video upload process');
-    
     // Verify admin authentication
     const headersList = headers();
     const authHeader = headersList.get('authorization');
@@ -34,55 +32,45 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Log environment variables (remove in production)
-    console.log('API Key:', process.env.BUNNY_API_KEY ? 'Set' : 'Not set');
-    console.log('Library ID:', process.env.BUNNY_LIBRARY_ID ? 'Set' : 'Not set');
-    console.log('CDN URL:', process.env.BUNNY_CDN_URL ? 'Set' : 'Not set');
+    console.log('Checking environment variables:', {
+      hasApiKey: !!process.env.BUNNY_API_KEY,
+      hasLibraryId: !!process.env.BUNNY_LIBRARY_ID,
+      hasCdnUrl: !!process.env.BUNNY_CDN_URL
+    });
 
-    // Parse form data
     const formData = await req.formData();
     const file: File | null = formData.get('file') as unknown as File;
     const title = formData.get('title') as string;
 
     if (!file || !title) {
-      console.log('Missing required fields:', { hasFile: !!file, hasTitle: !!title });
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
       );
     }
 
-    console.log('Creating video entry with title:', title);
     try {
-      // Create video entry
+      // Step 1: Create video
+      console.log('Creating video with title:', title);
       const { guid } = await bunnyVideo.createVideo(title);
-      console.log('Video entry created with GUID:', guid);
-      
-      // Convert File to ArrayBuffer
-      const arrayBuffer = await file.arrayBuffer();
-      console.log('File converted to ArrayBuffer, size:', arrayBuffer.byteLength);
-      
-      // Upload video file
-      console.log('Starting file upload to Bunny.net');
-      await bunnyVideo.uploadVideo(guid, arrayBuffer);
-      console.log('File upload completed');
-      
-      // Get video info
-      console.log('Retrieving video info');
-      const videoInfo = await bunnyVideo.getVideoInfo(guid);
-      console.log('Video info retrieved:', videoInfo);
+      console.log('Video created with GUID:', guid);
 
-      const response = {
+      // Step 2: Upload video data
+      console.log('Converting file to ArrayBuffer');
+      const arrayBuffer = await file.arrayBuffer();
+      console.log('Uploading video data');
+      await bunnyVideo.uploadVideo(guid, arrayBuffer);
+      console.log('Video upload complete');
+
+      return NextResponse.json({
         success: true,
         video: {
           id: guid,
-          title: videoInfo.title,
+          title,
           url: `${process.env.BUNNY_CDN_URL}/${guid}/play.mp4`,
           thumbnail: `${process.env.BUNNY_CDN_URL}/${guid}/thumbnail.jpg`
         }
-      };
-      console.log('Sending success response:', response);
-      return NextResponse.json(response);
+      });
     } catch (err) {
       console.error('Bunny.net operation failed:', err);
       throw err;
