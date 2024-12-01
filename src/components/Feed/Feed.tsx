@@ -30,6 +30,7 @@ export default function Feed({ setActiveTab }: FeedProps) {
   const [expandedComments, setExpandedComments] = useState<Set<string>>(new Set());
   const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     loadContent();
@@ -37,10 +38,13 @@ export default function Feed({ setActiveTab }: FeedProps) {
 
   const loadContent = async () => {
     try {
-      const loadedContent = getAllContent();
+      setIsLoading(true);
+      setError(null);
+      const loadedContent = await getAllContent();
       setContent(loadedContent);
     } catch (error) {
       console.error('Error loading content:', error);
+      setError('Failed to load content. Please try again later.');
     } finally {
       setIsLoading(false);
     }
@@ -76,26 +80,50 @@ export default function Feed({ setActiveTab }: FeedProps) {
     });
   };
 
-  const handleLike = (postId: string) => {
+  const handleLike = async (postId: string) => {
     if (!user) {
       alert('Please sign in to like posts');
       return;
     }
-    setLikedPosts(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(postId)) {
-        newSet.delete(postId);
-      } else {
-        newSet.add(postId);
-      }
-      return newSet;
-    });
+    try {
+      // Here you would typically make an API call to update the like status
+      // await updateLikeStatus(postId);
+      
+      setLikedPosts(prev => {
+        const newSet = new Set(prev);
+        if (newSet.has(postId)) {
+          newSet.delete(postId);
+        } else {
+          newSet.add(postId);
+        }
+        return newSet;
+      });
+    } catch (error) {
+      console.error('Error updating like status:', error);
+      alert('Failed to update like status. Please try again.');
+    }
   };
 
   if (isLoading) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-8">
         <div className="text-center">Loading...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-8">
+        <div className="text-center text-red-600">
+          <p>{error}</p>
+          <button 
+            onClick={loadContent}
+            className="mt-4 bg-yellow-400 text-black px-6 py-2 rounded-lg font-medium hover:bg-yellow-500"
+          >
+            Try Again
+          </button>
+        </div>
       </div>
     );
   }

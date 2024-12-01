@@ -1,4 +1,5 @@
 'use client';
+import ErrorBoundary from '@/components/ErrorBoundary';
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import Image from 'next/image';
@@ -180,10 +181,12 @@ export default function Home() {
           </div>
         )}
 
-        {activeTab === 'home' && <Feed setActiveTab={handleSetActiveTab} />}
-        {activeTab === 'about' && <AboutContent />}
-        {activeTab === 'membership' && <MembershipTiers onSubscribe={() => setShowWelcome(true)} />}
-        {activeTab === 'store' && <Store />}
+        <ErrorBoundary>
+          {activeTab === 'home' && <Feed setActiveTab={handleSetActiveTab} />}
+          {activeTab === 'about' && <AboutContent />}
+          {activeTab === 'membership' && <MembershipTiers onSubscribe={() => setShowWelcome(true)} />}
+          {activeTab === 'store' && <Store />}
+        </ErrorBoundary>
       </main>
     </div>
   );

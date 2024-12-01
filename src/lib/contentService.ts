@@ -1,154 +1,150 @@
-// src/lib/contentService.ts
 import { Content, MembershipTier, ServiceResponse } from './types';
 
-export function getAllContent(): Content[] {
+const API_BASE = '/api/content';
+
+export async function getAllContent(): Promise<Content[]> {
   try {
-    const content = localStorage.getItem('siteContent');
-    return content ? JSON.parse(content) : [];
+    const response = await fetch(API_BASE);
+    if (!response.ok) throw new Error('Failed to fetch content');
+    return response.json();
   } catch (error) {
     console.error('Error getting content:', error);
     return [];
   }
 }
 
-export function saveContent(content: Content[]): void {
+export async function saveContent(content: Content[]): Promise<void> {
   try {
-    localStorage.setItem('siteContent', JSON.stringify(content));
+    const response = await fetch(API_BASE + '/batch', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(content),
+    });
+    if (!response.ok) throw new Error('Failed to save content');
   } catch (error) {
     console.error('Error saving content:', error);
     throw error;
   }
 }
 
-export function addContent(content: Content): Content[] {
+export async function addContent(content: Content): Promise<Content> {
   try {
-    const currentContent = getAllContent();
-    const newContent = [content, ...currentContent];
-    saveContent(newContent);
-    return newContent;
+    const response = await fetch(API_BASE, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(content),
+    });
+    if (!response.ok) throw new Error('Failed to add content');
+    return response.json();
   } catch (error) {
     console.error('Error adding content:', error);
     throw error;
   }
 }
 
-export function deleteContent(contentId: string): Content[] {
+export async function deleteContent(contentId: string): Promise<void> {
   try {
-    const currentContent = getAllContent();
-    const newContent = currentContent.filter(content => content.id !== contentId);
-    saveContent(newContent);
-    return newContent;
+    const response = await fetch(`${API_BASE}/${contentId}`, {
+      method: 'DELETE',
+    });
+    if (!response.ok) throw new Error('Failed to delete content');
   } catch (error) {
     console.error('Error deleting content:', error);
     throw error;
   }
 }
 
-export function getContentById(contentId: string): Content | null {
+export async function getContentById(contentId: string): Promise<Content | null> {
   try {
-    const currentContent = getAllContent();
-    return currentContent.find(content => content.id === contentId) || null;
+    const response = await fetch(`${API_BASE}/${contentId}`);
+    if (!response.ok) throw new Error('Failed to fetch content');
+    return response.json();
   } catch (error) {
     console.error('Error getting content by ID:', error);
     return null;
   }
 }
 
-export function updateContent(contentId: string, updates: Partial<Content>): Content[] {
+export async function updateContent(contentId: string, updates: Partial<Content>): Promise<Content> {
   try {
-    const currentContent = getAllContent();
-    const newContent = currentContent.map(content => 
-      content.id === contentId ? { ...content, ...updates } : content
-    );
-    saveContent(newContent);
-    return newContent;
+    const response = await fetch(`${API_BASE}/${contentId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    });
+    if (!response.ok) throw new Error('Failed to update content');
+    return response.json();
   } catch (error) {
     console.error('Error updating content:', error);
     throw error;
   }
 }
 
-export function getContentByTier(tier: MembershipTier): Content[] {
+export async function getContentByTier(tier: MembershipTier): Promise<Content[]> {
   try {
-    const currentContent = getAllContent();
-    return currentContent.filter(content => content.tier === tier);
+    const response = await fetch(`${API_BASE}/tier/${tier}`);
+    if (!response.ok) throw new Error('Failed to fetch content by tier');
+    return response.json();
   } catch (error) {
     console.error('Error getting content by tier:', error);
     return [];
   }
 }
 
-export function searchContent(query: string): Content[] {
+export async function searchContent(query: string): Promise<Content[]> {
   try {
-    const currentContent = getAllContent();
-    const lowerQuery = query.toLowerCase();
-    return currentContent.filter(content => 
-      content.title.toLowerCase().includes(lowerQuery) ||
-      content.description.toLowerCase().includes(lowerQuery) ||
-      content.tags?.some(tag => tag.toLowerCase().includes(lowerQuery))
-    );
+    const response = await fetch(`${API_BASE}/search?q=${encodeURIComponent(query)}`);
+    if (!response.ok) throw new Error('Failed to search content');
+    return response.json();
   } catch (error) {
     console.error('Error searching content:', error);
     return [];
   }
 }
 
-export function getContentByCategory(category: string): Content[] {
+export async function getContentByCategory(category: string): Promise<Content[]> {
   try {
-    const currentContent = getAllContent();
-    return currentContent.filter(content => content.category === category);
+    const response = await fetch(`${API_BASE}/category/${encodeURIComponent(category)}`);
+    if (!response.ok) throw new Error('Failed to fetch content by category');
+    return response.json();
   } catch (error) {
     console.error('Error getting content by category:', error);
     return [];
   }
 }
 
-export function getPopularContent(limit: number = 10): Content[] {
+export async function getPopularContent(limit: number = 10): Promise<Content[]> {
   try {
-    const currentContent = getAllContent();
-    return [...currentContent]
-      .sort((a, b) => (b.likes + b.comments) - (a.likes + a.comments))
-      .slice(0, limit);
+    const response = await fetch(`${API_BASE}/popular?limit=${limit}`);
+    if (!response.ok) throw new Error('Failed to fetch popular content');
+    return response.json();
   } catch (error) {
     console.error('Error getting popular content:', error);
     return [];
   }
 }
 
-export function getRecentContent(limit: number = 10): Content[] {
+export async function getRecentContent(limit: number = 10): Promise<Content[]> {
   try {
-    const currentContent = getAllContent();
-    return [...currentContent]
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-      .slice(0, limit);
+    const response = await fetch(`${API_BASE}/recent?limit=${limit}`);
+    if (!response.ok) throw new Error('Failed to fetch recent content');
+    return response.json();
   } catch (error) {
     console.error('Error getting recent content:', error);
     return [];
   }
 }
 
-export function incrementContentLikes(contentId: string): ServiceResponse<Content> {
+export async function incrementContentLikes(contentId: string): Promise<ServiceResponse<Content>> {
   try {
-    const currentContent = getAllContent();
-    const contentIndex = currentContent.findIndex(content => content.id === contentId);
-    
-    if (contentIndex === -1) {
-      return {
-        success: false,
-        error: 'Content not found'
-      };
-    }
-
-    currentContent[contentIndex] = {
-      ...currentContent[contentIndex],
-      likes: currentContent[contentIndex].likes + 1
-    };
-
-    saveContent(currentContent);
-    
+    const response = await fetch(`${API_BASE}/${contentId}/like`, {
+      method: 'POST',
+    });
+    if (!response.ok) throw new Error('Failed to increment likes');
+    const data = await response.json();
     return {
       success: true,
-      data: currentContent[contentIndex]
+      data
     };
   } catch (error) {
     console.error('Error incrementing likes:', error);
@@ -159,28 +155,16 @@ export function incrementContentLikes(contentId: string): ServiceResponse<Conten
   }
 }
 
-export function incrementContentComments(contentId: string): ServiceResponse<Content> {
+export async function incrementContentComments(contentId: string): Promise<ServiceResponse<Content>> {
   try {
-    const currentContent = getAllContent();
-    const contentIndex = currentContent.findIndex(content => content.id === contentId);
-    
-    if (contentIndex === -1) {
-      return {
-        success: false,
-        error: 'Content not found'
-      };
-    }
-
-    currentContent[contentIndex] = {
-      ...currentContent[contentIndex],
-      comments: currentContent[contentIndex].comments + 1
-    };
-
-    saveContent(currentContent);
-    
+    const response = await fetch(`${API_BASE}/${contentId}/comment`, {
+      method: 'POST',
+    });
+    if (!response.ok) throw new Error('Failed to increment comments');
+    const data = await response.json();
     return {
       success: true,
-      data: currentContent[contentIndex]
+      data
     };
   } catch (error) {
     console.error('Error incrementing comments:', error);

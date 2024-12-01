@@ -1,6 +1,4 @@
-// src/components/ContentManager.tsx
 'use client';
-import { hasPermission, ADMIN_CONFIG } from '@/lib/adminConfig';
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { Content } from '@/lib/types';
@@ -31,6 +29,7 @@ export default function ContentManager() {
   const [selectedTier, setSelectedTier] = useState<'basic' | 'premium' | 'allAccess'>('basic');
   const [file, setFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [isLoadingContent, setIsLoadingContent] = useState(true);
   const [error, setError] = useState('');
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadedContent, setUploadedContent] = useState<Content[]>([]);
@@ -40,18 +39,12 @@ export default function ContentManager() {
   const [previewUrl, setPreviewUrl] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Load existing content on mount
+  // Effect for initial content loading
   useEffect(() => {
-    try {
-      const content = getAllContent();
-      setUploadedContent(content);
-    } catch (err) {
-      console.error('Error loading content:', err);
-      setError('Failed to load existing content');
-    }
+    loadContent();
   }, []);
 
-  // Cleanup preview URLs when component unmounts
+  // Separate effect for previewUrl cleanup
   useEffect(() => {
     return () => {
       if (previewUrl) {
@@ -60,17 +53,28 @@ export default function ContentManager() {
     };
   }, [previewUrl]);
 
+  const loadContent = async () => {
+    setIsLoadingContent(true);
+    try {
+      const content = await getAllContent();
+      setUploadedContent(content);
+    } catch (err) {
+      console.error('Error loading content:', err);
+      setError('Failed to load existing content');
+    } finally {
+      setIsLoadingContent(false);
+    }
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const selectedFile = e.target.files[0];
       
-      // Validate file size (10MB limit)
       if (selectedFile.size > 10 * 1024 * 1024) {
         setError('File size must be less than 10MB');
         return;
       }
 
-      // Cleanup previous preview URL if exists
       if (previewUrl) {
         URL.revokeObjectURL(previewUrl);
       }
@@ -78,7 +82,6 @@ export default function ContentManager() {
       setFile(selectedFile);
       setError('');
 
-      // Create preview URL for media files
       if (selectedFile.type.startsWith('image/') || selectedFile.type.startsWith('video/')) {
         const url = URL.createObjectURL(selectedFile);
         setPreviewUrl(url);
@@ -153,15 +156,11 @@ export default function ContentManager() {
     try {
       let mediaContent = undefined;
 
-      // Handle media upload if there's a file
       if (file) {
         const formData = new FormData();
         formData.append('file', file);
         formData.append('type', contentType);
         formData.append('title', title);
-
-        // Log the auth header being sent (for debugging)
-        console.log('Sending request with auth:', user?.email);
 
         const uploadResponse = await fetch('/api/upload', {
           method: 'POST',
@@ -173,13 +172,11 @@ export default function ContentManager() {
 
         if (!uploadResponse.ok) {
           const errorData = await uploadResponse.json();
-          console.error('Upload response:', errorData);
           throw new Error(errorData.error || 'Failed to upload media');
         }
 
         const { url, thumbnailUrl } = await uploadResponse.json();
 
-        // Create appropriate media content object based on type
         switch (contentType) {
           case 'video':
             mediaContent = {
@@ -211,7 +208,6 @@ export default function ContentManager() {
             break;
         }
       }
-      // Handle poll content
       else if (contentType === 'poll') {
         const pollOptionsObject: Record<string, number> = {};
         pollOptions.forEach(option => {
@@ -229,7 +225,6 @@ export default function ContentManager() {
         };
       }
 
-      // Create the content object
       const newContent: Content = {
         id: Date.now().toString(),
         type: contentType,
@@ -252,11 +247,8 @@ export default function ContentManager() {
         category: contentType.charAt(0).toUpperCase() + contentType.slice(1)
       };
 
-      // Add content to storage
-      const updatedContent = addContent(newContent);
-      setUploadedContent(updatedContent);
-
-      // Reset form
+      const savedContent = await addContent(newContent);
+      setUploadedContent(prev => [savedContent, ...prev]);
       resetForm();
       
       alert('Content created successfully!');
@@ -276,7 +268,6 @@ export default function ContentManager() {
     }
 
     try {
-      // Delete media file if exists
       const content = uploadedContent.find(c => c.id === contentId);
       if (content?.mediaContent) {
         const response = await fetch('/api/media/delete', {
@@ -299,8 +290,8 @@ export default function ContentManager() {
         }
       }
 
-      const updatedContent = deleteContent(contentId);
-      setUploadedContent(updatedContent);
+      await deleteContent(contentId);
+      setUploadedContent(prev => prev.filter(item => item.id !== contentId));
       alert('Content deleted successfully!');
     } catch (err) {
       console.error('Delete error:', err);
@@ -446,8 +437,8 @@ export default function ContentManager() {
                   ))}
                   <button
                     type="button"
-                    onClick={() => setPollOptions([...pollOptions, ''])}className="mt-2 flex items-center gap-2 text-yellow-600 hover:text-yellow-700"
-                  >
+                    onClick={() => setPollOptions([...pollOptions, ''])}
+                    className="mt-2 flex items-center gap-2 text-yellow-600 hover:text-yellow-700">
                     <PlusCircle className="w-4 h-4" />
                     Add Option
                   </button>
@@ -580,7 +571,11 @@ export default function ContentManager() {
         {activeTab === 'manage' && (
           <div className="p-6">
             <h2 className="text-xl font-bold mb-6">Manage Content</h2>
-            {uploadedContent.length === 0 ? (
+            {isLoadingContent ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="w-8 h-8 text-yellow-400 animate-spin" />
+              </div>
+            ) : uploadedContent.length === 0 ? (
               <p className="text-center text-gray-600 py-8">No content uploaded yet.</p>
             ) : (
               <div className="space-y-4">
