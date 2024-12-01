@@ -21,83 +21,84 @@ import {
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export default function ContentManager() {
-  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'create' | 'manage'>('create');
   const [contentType, setContentType] = useState<'post' | 'video' | 'gallery' | 'audio' | 'poll'>('post');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [selectedTier, setSelectedTier] = useState<'basic' | 'premium' | 'allAccess'>('basic');
   const [file, setFile] = useState<File | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
-  const [isLoadingContent, setIsLoadingContent] = useState(true);
+  const [selectedTier, setSelectedTier] = useState<'basic' | 'premium' | 'allAccess'>('basic');
   const [error, setError] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadedContent, setUploadedContent] = useState<Content[]>([]);
-  const [pollOptions, setPollOptions] = useState<string[]>(['', '']);
+  const [isLoadingContent, setIsLoadingContent] = useState(true);
+  const [pollOptions, setPollOptions] = useState(['', '']);
   const [pollEndDate, setPollEndDate] = useState('');
   const [showPreview, setShowPreview] = useState(false);
-  const [previewUrl, setPreviewUrl] = useState('');
+  const [previewUrl, setPreviewUrl] = useState<string>('');
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { user } = useAuth();
 
-  // Effect for initial content loading
   useEffect(() => {
-    loadContent();
-  }, []);
-
-  // Separate effect for previewUrl cleanup
-  useEffect(() => {
-    return () => {
-      if (previewUrl) {
-        URL.revokeObjectURL(previewUrl);
+    const loadContent = async () => {
+      try {
+        const content = await getAllContent();
+        setUploadedContent(content);
+      } catch (err) {
+        console.error('Error loading content:', err);
+        setError('Failed to load content');
+      } finally {
+        setIsLoadingContent(false);
       }
     };
-  }, [previewUrl]);
 
-  const loadContent = async () => {
-    setIsLoadingContent(true);
-    try {
-      const content = await getAllContent();
-      setUploadedContent(content);
-    } catch (err) {
-      console.error('Error loading content:', err);
-      setError('Failed to load existing content');
-    } finally {
-      setIsLoadingContent(false);
+    if (activeTab === 'manage') {
+      loadContent();
     }
+  }, [activeTab]);
+
+  const resetForm = () => {
+    setTitle('');
+    setDescription('');
+    setFile(null);
+    setSelectedTier('basic');
+    setError('');
+    setPollOptions(['', '']);
+    setPollEndDate('');
+    setShowPreview(false);
+    setPreviewUrl('');
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const droppedFile = e.dataTransfer.files[0];
+    if (droppedFile) {
+      handleFileSelection(droppedFile);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      const selectedFile = e.target.files[0];
-      
-      if (selectedFile.size > 10 * 1024 * 1024) {
-        setError('File size must be less than 10MB');
-        return;
-      }
-
-      if (previewUrl) {
-        URL.revokeObjectURL(previewUrl);
-      }
-
-      setFile(selectedFile);
-      setError('');
-
-      if (selectedFile.type.startsWith('image/') || selectedFile.type.startsWith('video/')) {
-        const url = URL.createObjectURL(selectedFile);
-        setPreviewUrl(url);
-        setShowPreview(true);
-      }
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile) {
+      handleFileSelection(selectedFile);
     }
   };
 
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    const droppedFile = e.dataTransfer.files[0];
-    handleFileChange({ target: { files: [droppedFile] } } as any);
-  };
+  const handleFileSelection = (selectedFile: File) => {
+    setFile(selectedFile);
+    setError('');
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
+    // Create preview URL for supported file types
+    if (contentType === 'video' || contentType === 'gallery' || contentType === 'audio') {
+      const url = URL.createObjectURL(selectedFile);
+      setPreviewUrl(url);
+      setShowPreview(true);
+    }
   };
 
   const validateForm = () => {
@@ -130,22 +131,6 @@ export default function ContentManager() {
     return true;
   };
 
-  const resetForm = () => {
-    setTitle('');
-    setDescription('');
-    setFile(null);
-    setPollOptions(['', '']);
-    setPollEndDate('');
-    setShowPreview(false);
-    if (previewUrl) {
-      URL.revokeObjectURL(previewUrl);
-      setPreviewUrl('');
-    }
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateForm()) return;
@@ -156,7 +141,8 @@ export default function ContentManager() {
     try {
       let mediaContent = undefined;
 
-      if (file) {
+      // Handle file uploads first if present
+      if (file && contentType !== 'post') {
         const formData = new FormData();
         formData.append('file', file);
         formData.append('type', contentType);
@@ -207,8 +193,7 @@ export default function ContentManager() {
             };
             break;
         }
-      }
-      else if (contentType === 'poll') {
+      } else if (contentType === 'poll') {
         const pollOptionsObject: Record<string, number> = {};
         pollOptions.forEach(option => {
           if (option.trim()) {
@@ -225,8 +210,9 @@ export default function ContentManager() {
         };
       }
 
+      // Create the content using the service
       const newContent: Content = {
-        id: Date.now().toString(),
+        id: Date.now().toString(), // This will be replaced by the server
         type: contentType,
         title: title.trim(),
         description: description.trim(),
@@ -250,7 +236,6 @@ export default function ContentManager() {
       const savedContent = await addContent(newContent);
       setUploadedContent(prev => [savedContent, ...prev]);
       resetForm();
-      
       alert('Content created successfully!');
 
     } catch (err) {
@@ -449,8 +434,7 @@ export default function ContentManager() {
                     </label>
                     <input
                       type="datetime-local"
-                      value={pollEndDate}
-                      onChange={(e) => setPollEndDate(e.target.value)}
+                      value={pollEndDate}onChange={(e) => setPollEndDate(e.target.value)}
                       className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400"
                       required={contentType === 'poll'}
                     />

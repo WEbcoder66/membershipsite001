@@ -1,4 +1,4 @@
-// src/lib/bunnyService.ts
+import { LIMITS } from '@/lib/constants';
 
 interface BunnyConfig {
   apiKey: string;
@@ -14,6 +14,21 @@ interface BunnyVideoResponse {
   status: number;
   storageSize: number;
   thumbnail: string;
+  length: number;
+}
+
+interface BunnyVideoCollection {
+  totalItems: number;
+  items: BunnyVideoResponse[];
+  currentPage: number;
+  itemsPerPage: number;
+  totalPages: number;
+}
+
+interface BunnyVideoStatistics {
+  totalViews: number;
+  monthlyViews: number;
+  viewsByCountry: Record<string, number>;
 }
 
 export class BunnyVideoService {
@@ -24,50 +39,54 @@ export class BunnyVideoService {
     this.config = config;
   }
 
+  private async makeRequest<T>(
+    endpoint: string,
+    options: RequestInit = {}
+  ): Promise<T> {
+    const url = `${this.API_BASE_URL}/${this.config.libraryId}${endpoint}`;
+    const headers = {
+      'AccessKey': this.config.apiKey,
+      ...options.headers
+    };
+
+    const response = await fetch(url, { ...options, headers });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Bunny.net API error: ${error}`);
+    }
+
+    return response.json();
+  }
+
   async uploadVideo(file: File, title: string): Promise<string> {
     try {
-      // Step 1: Create video in Bunny.net library
       console.log('Creating video in Bunny.net library:', { title });
-      const createResponse = await fetch(
-        `${this.API_BASE_URL}/${this.config.libraryId}/videos`,
-        {
-          method: 'POST',
-          headers: {
-            'AccessKey': this.config.apiKey,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ title })
-        }
-      );
 
-      if (!createResponse.ok) {
-        const error = await createResponse.text();
-        throw new Error(`Failed to create video: ${error}`);
+      if (file.size > LIMITS.maxFileSize) {
+        throw new Error(`File size exceeds limit of ${LIMITS.maxFileSize / (1024 * 1024)}MB`);
       }
 
-      const { guid } = await createResponse.json();
+      const createResponse = await this.makeRequest<{ guid: string }>('', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ title })
+      });
 
-      // Step 2: Upload the video file
+      const { guid } = createResponse;
+
       console.log('Uploading video file to Bunny.net:', { guid });
       const arrayBuffer = await file.arrayBuffer();
-      const uploadResponse = await fetch(
-        `${this.API_BASE_URL}/${this.config.libraryId}/videos/${guid}`,
-        {
-          method: 'PUT',
-          headers: {
-            'AccessKey': this.config.apiKey,
-            'Content-Type': 'application/octet-stream'
-          },
-          body: arrayBuffer
-        }
-      );
+      await this.makeRequest<void>(`/videos/${guid}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/octet-stream'
+        },
+        body: arrayBuffer
+      });
 
-      if (!uploadResponse.ok) {
-        const error = await uploadResponse.text();
-        throw new Error(`Failed to upload video: ${error}`);
-      }
-
-      // Return the CDN URL for the video
       const videoUrl = `${this.config.cdnUrl}/${guid}/play.mp4`;
       console.log('Video upload successful:', { videoUrl });
       return videoUrl;
@@ -81,21 +100,9 @@ export class BunnyVideoService {
   async deleteVideo(guid: string): Promise<void> {
     try {
       console.log('Deleting video from Bunny.net:', { guid });
-      const response = await fetch(
-        `${this.API_BASE_URL}/${this.config.libraryId}/videos/${guid}`,
-        {
-          method: 'DELETE',
-          headers: {
-            'AccessKey': this.config.apiKey
-          }
-        }
-      );
-
-      if (!response.ok) {
-        const error = await response.text();
-        throw new Error(`Failed to delete video: ${error}`);
-      }
-
+      await this.makeRequest<void>(`/videos/${guid}`, {
+        method: 'DELETE'
+      });
       console.log('Video deleted successfully');
     } catch (error) {
       console.error('Video deletion error:', error);
@@ -106,21 +113,7 @@ export class BunnyVideoService {
   async getVideoInfo(guid: string): Promise<BunnyVideoResponse> {
     try {
       console.log('Fetching video info from Bunny.net:', { guid });
-      const response = await fetch(
-        `${this.API_BASE_URL}/${this.config.libraryId}/videos/${guid}`,
-        {
-          headers: {
-            'AccessKey': this.config.apiKey
-          }
-        }
-      );
-
-      if (!response.ok) {
-        const error = await response.text();
-        throw new Error(`Failed to get video info: ${error}`);
-      }
-
-      const videoInfo = await response.json();
+      const videoInfo = await this.makeRequest<BunnyVideoResponse>(`/videos/${guid}`);
       console.log('Video info retrieved successfully:', videoInfo);
       return videoInfo;
     } catch (error) {
@@ -132,23 +125,13 @@ export class BunnyVideoService {
   async updateVideoTitle(guid: string, title: string): Promise<void> {
     try {
       console.log('Updating video title in Bunny.net:', { guid, title });
-      const response = await fetch(
-        `${this.API_BASE_URL}/${this.config.libraryId}/videos/${guid}`,
-        {
-          method: 'POST',
-          headers: {
-            'AccessKey': this.config.apiKey,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ title })
-        }
-      );
-
-      if (!response.ok) {
-        const error = await response.text();
-        throw new Error(`Failed to update video title: ${error}`);
-      }
-
+      await this.makeRequest<void>(`/videos/${guid}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ title })
+      });
       console.log('Video title updated successfully');
     } catch (error) {
       console.error('Update video title error:', error);
@@ -156,28 +139,58 @@ export class BunnyVideoService {
     }
   }
 
-  async listVideos(page: number = 1, perPage: number = 100): Promise<BunnyVideoResponse[]> {
+  async listVideos(page: number = 1, perPage: number = 100): Promise<BunnyVideoCollection> {
     try {
       console.log('Fetching video list from Bunny.net:', { page, perPage });
-      const response = await fetch(
-        `${this.API_BASE_URL}/${this.config.libraryId}/videos?page=${page}&itemsPerPage=${perPage}`,
-        {
-          headers: {
-            'AccessKey': this.config.apiKey
-          }
-        }
+      const response = await this.makeRequest<BunnyVideoCollection>(
+        `/videos?page=${page}&itemsPerPage=${perPage}`
       );
-
-      if (!response.ok) {
-        const error = await response.text();
-        throw new Error(`Failed to list videos: ${error}`);
-      }
-
-      const videos = await response.json();
-      console.log(`Retrieved ${videos.length} videos`);
-      return videos;
+      console.log(`Retrieved ${response.items.length} videos`);
+      return response;
     } catch (error) {
       console.error('List videos error:', error);
+      throw error;
+    }
+  }
+
+  async reencode(guid: string): Promise<void> {
+    try {
+      console.log('Requesting video reencode:', { guid });
+      await this.makeRequest<void>(`/videos/${guid}/reencode`, {
+        method: 'POST'
+      });
+      console.log('Reencode request successful');
+    } catch (error) {
+      console.error('Reencode request error:', error);
+      throw error;
+    }
+  }
+
+  async setVideoThumbnail(guid: string, thumbnailUrl: string): Promise<void> {
+    try {
+      console.log('Setting video thumbnail:', { guid, thumbnailUrl });
+      await this.makeRequest<void>(`/videos/${guid}/thumbnail`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ thumbnailUrl })
+      });
+      console.log('Thumbnail set successfully');
+    } catch (error) {
+      console.error('Set thumbnail error:', error);
+      throw error;
+    }
+  }
+
+  async getVideoStatistics(guid: string): Promise<BunnyVideoStatistics> {
+    try {
+      console.log('Fetching video statistics:', { guid });
+      const stats = await this.makeRequest<BunnyVideoStatistics>(`/videos/${guid}/statistics`);
+      console.log('Statistics retrieved successfully');
+      return stats;
+    } catch (error) {
+      console.error('Get statistics error:', error);
       throw error;
     }
   }

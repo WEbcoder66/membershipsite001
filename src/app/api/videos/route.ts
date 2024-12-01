@@ -2,15 +2,8 @@
 
 import { NextResponse } from 'next/server';
 import { headers } from 'next/headers';
-import { BunnyVideoService } from '@/lib/bunnyService';
+import { bunnyVideo } from '@/lib/bunnyService';
 import { ADMIN_CREDENTIALS } from '@/lib/adminConfig';
-
-// Initialize BunnyVideoService
-const bunnyVideo = new BunnyVideoService({
-  apiKey: process.env.BUNNY_API_KEY || '',
-  libraryId: process.env.BUNNY_LIBRARY_ID || '',
-  cdnUrl: process.env.BUNNY_CDN_URL || ''
-});
 
 // Verify admin authentication
 const verifyAdmin = (headersList: Headers) => {
@@ -55,10 +48,10 @@ export async function GET(req: Request) {
     const perPage = parseInt(url.searchParams.get('perPage') || '100');
 
     // Get videos from Bunny.net
-    const videos = await bunnyVideo.listVideos(page, perPage);
+    const videoCollection = await bunnyVideo.listVideos(page, perPage);
 
     // Format the response
-    const formattedVideos = videos.map(video => ({
+    const formattedVideos = videoCollection.items.map(video => ({
       id: video.guid,
       title: video.title,
       url: `${process.env.BUNNY_CDN_URL}/${video.guid}/play.mp4`,
@@ -71,7 +64,9 @@ export async function GET(req: Request) {
 
     return NextResponse.json({
       success: true,
-      videos: formattedVideos
+      videos: formattedVideos,
+      totalItems: videoCollection.totalItems,
+      currentPage: page
     });
 
   } catch (error) {
