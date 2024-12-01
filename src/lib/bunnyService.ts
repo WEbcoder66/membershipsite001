@@ -33,20 +33,37 @@ export class BunnyVideoService {
 
   private async makeRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = `${this.API_BASE_URL}/${this.config.libraryId}${endpoint}`;
+    
+    // Log request details
+    console.log('Making Bunny.net request:', {
+      url,
+      method: options.method || 'GET',
+      hasBody: !!options.body,
+      headers: options.headers
+    });
     const headers = {
       'AccessKey': this.config.apiKey,
       ...options.headers
     };
-
-    const response = await fetch(url, { ...options, headers });
-    
-    if (!response.ok) {
-      const error = await response.text();
-      console.error('Bunny.net API error:', error);
-      throw new Error(`Bunny.net API error: ${error}`);
+    try {
+      const response = await fetch(url, { ...options, headers });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Bunny.net API error response:', {
+          status: response.status,
+          statusText: response.statusText,
+          errorText
+        });
+        throw new Error(`Bunny.net API error (${response.status}): ${errorText}`);
+      }
+      const data = await response.json();
+      console.log('Bunny.net API success response:', data);
+      return data;
+    } catch (error) {
+      console.error('Bunny.net request failed:', error);
+      throw error;
     }
-
-    return response.json();
   }
 
   async createVideo(title: string): Promise<{ guid: string }> {
