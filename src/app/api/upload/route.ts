@@ -39,7 +39,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // Verify auth
+    // Verify admin auth
     const headersList = headers();
     const authHeader = headersList.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
