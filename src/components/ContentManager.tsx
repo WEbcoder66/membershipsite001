@@ -99,42 +99,32 @@ export default function ContentManager() {
     if (contentType === 'video') {
       setIsUploading(true);
       try {
-        // 1. Create video entry in Bunny.net
-        const createResponse = await fetch(
-          `https://video.bunnycdn.com/library/${process.env.NEXT_PUBLIC_BUNNY_LIBRARY_ID}/videos`,
-          {
-            method: 'POST',
-            headers: {
-              'AccessKey': process.env.NEXT_PUBLIC_BUNNY_API_KEY!,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ title })
-          }
-        );
+        // Step 1: Create FormData with required fields
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+        formData.append('title', title || selectedFile.name); // Use file name as fallback
         
-        if (!createResponse.ok) {
-          throw new Error('Failed to create video entry');
-        }
-        
-        const { guid } = await createResponse.json();
+        // Step 2: Upload to your API
+        const response = await fetch('/api/videos', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${user?.email}`
+          },
+          body: formData
+        });
 
-        // 2. Upload the actual file to Bunny.net
-        const uploadResponse = await fetch(
-          `https://video.bunnycdn.com/library/${process.env.NEXT_PUBLIC_BUNNY_LIBRARY_ID}/videos/${guid}`,
-          {
-            method: 'PUT',
-            headers: {
-              'AccessKey': process.env.NEXT_PUBLIC_BUNNY_API_KEY!
-            },
-            body: selectedFile
-          }
-        );
-
-        if (!uploadResponse.ok) {
-          throw new Error('Failed to upload video file');
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to upload video');
         }
 
-        // 3. Save metadata to MongoDB
+        const { success, video } = await response.json();
+
+        if (!success || !video) {
+          throw new Error('Invalid response from server');
+        }
+
+        // Step 3: Save content metadata
         const contentResponse = await fetch('/api/content', {
           method: 'POST',
           headers: {
@@ -143,16 +133,15 @@ export default function ContentManager() {
           },
           body: JSON.stringify({
             type: 'video',
-            title,
+            title: title || video.title,
             description,
             tier: membershipTier,
             mediaContent: {
               video: {
-                url: `${process.env.NEXT_PUBLIC_BUNNY_CDN_URL}/${guid}/play.mp4`,
-                thumbnail: `${process.env.NEXT_PUBLIC_BUNNY_CDN_URL}/${guid}/thumbnail.jpg`,
-                title,
-                duration: '0:00',
-                quality: 'HD'
+                url: video.url,
+                thumbnail: video.thumbnail,
+                title: video.title,
+                duration: '0:00' // You can update this if Bunny.net provides duration
               }
             }
           })
@@ -163,8 +152,8 @@ export default function ContentManager() {
         }
 
         // Create preview URL
-        const url = URL.createObjectURL(selectedFile);
-        setPreviewUrl(url);
+        const previewUrl = URL.createObjectURL(selectedFile);
+        setPreviewUrl(previewUrl);
         setShowPreview(true);
 
         setUploadProgress(100);
@@ -182,7 +171,7 @@ export default function ContentManager() {
         setIsUploading(false);
       }
     } else {
-      // Create preview URL for supported file types
+      // Handle other content types...
       if (contentType === 'gallery' || contentType === 'audio') {
         const url = URL.createObjectURL(selectedFile);
         setPreviewUrl(url);
@@ -226,7 +215,6 @@ export default function ContentManager() {
     if (!validateForm()) return;
 
     if (contentType === 'poll') {
-      // Handle poll creation
       try {
         const pollOptionsObject: Record<string, number> = {};
         pollOptions.forEach(option => {
@@ -454,8 +442,7 @@ export default function ContentManager() {
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Poll End Date
                     </label>
-                    <input
-                      type="datetime-local"
+                    <input type="datetime-local"
                       value={pollEndDate}
                       onChange={(e) => setPollEndDate(e.target.value)}
                       className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400"

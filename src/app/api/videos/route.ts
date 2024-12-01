@@ -1,5 +1,3 @@
-// src/app/api/videos/route.ts
-
 import { NextResponse } from 'next/server';
 import { headers } from 'next/headers';
 import { bunnyVideo } from '@/lib/bunnyService';
@@ -18,6 +16,58 @@ const verifyAdmin = (headersList: Headers) => {
     throw new Error('Unauthorized - Admin access required');
   }
 };
+
+// POST endpoint to upload a video
+export async function POST(req: Request) {
+  try {
+    // Verify admin authentication
+    const headersList = headers();
+    const authHeader = headersList.get('authorization');
+    
+    if (!authHeader?.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const formData = await req.formData();
+    const file: File | null = formData.get('file') as unknown as File;
+    const title = formData.get('title') as string;
+
+    if (!file || !title) {
+      return NextResponse.json(
+        { error: 'Missing required fields' },
+        { status: 400 }
+      );
+    }
+
+    // Create video entry
+    const { guid } = await bunnyVideo.createVideo(title);
+    
+    // Convert File to ArrayBuffer for upload
+    const arrayBuffer = await file.arrayBuffer();
+    
+    // Upload video file
+    await bunnyVideo.uploadVideo(guid, arrayBuffer);
+    
+    // Get video info
+    const videoInfo = await bunnyVideo.getVideoInfo(guid);
+
+    return NextResponse.json({
+      success: true,
+      video: {
+        id: guid,
+        title: videoInfo.title,
+        url: `${process.env.BUNNY_CDN_URL}/${guid}/play.mp4`,
+        thumbnail: `${process.env.BUNNY_CDN_URL}/${guid}/thumbnail.jpg`
+      }
+    });
+  } catch (error) {
+    console.error('Video upload error:', error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to upload video' },
+      { status: 500 }
+    );
+  }
+}
 
 // GET endpoint to fetch all videos
 export async function GET(req: Request) {

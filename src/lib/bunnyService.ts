@@ -31,20 +31,15 @@ export class BunnyVideoService {
     this.config = config;
   }
 
-  private async makeRequest<T>(
-    endpoint: string,
-    options: RequestInit = {}
-  ): Promise<T> {
+  private async makeRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = `${this.API_BASE_URL}/${this.config.libraryId}${endpoint}`;
     const headers = {
       'AccessKey': this.config.apiKey,
       ...options.headers
     };
 
-    console.log('Making request to:', url);
-
     const response = await fetch(url, { ...options, headers });
-
+    
     if (!response.ok) {
       const error = await response.text();
       console.error('Bunny.net API error:', error);
@@ -54,74 +49,21 @@ export class BunnyVideoService {
     return response.json();
   }
 
-  async uploadVideo(file: File, title: string): Promise<string> {
-    try {
-      console.log('Starting video upload process:', { title, fileSize: file.size });
-      
-      // Step 1: Create video entry
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
-      
-      console.log('Creating video entry...');
-      const createResponse = await this.makeRequest<{ guid: string }>('', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ title }),
-        signal: controller.signal
-      });
-      clearTimeout(timeoutId);
-      
-      const { guid } = createResponse;
-      console.log('Video entry created with GUID:', guid);
+  async createVideo(title: string): Promise<{ guid: string }> {
+    return this.makeRequest<{ guid: string }>('', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ title })
+    });
+  }
 
-      // Step 2: Upload video file with chunk handling
-      const chunkSize = 5 * 1024 * 1024; // 5MB chunks
-      const arrayBuffer = await file.arrayBuffer();
-      const totalChunks = Math.ceil(arrayBuffer.byteLength / chunkSize);
-      
-      console.log(`Uploading file in ${totalChunks} chunks...`);
-      
-      for (let i = 0; i < totalChunks; i++) {
-        const start = i * chunkSize;
-        const end = Math.min(start + chunkSize, arrayBuffer.byteLength);
-        const chunk = arrayBuffer.slice(start, end);
-        const uploadController = new AbortController();
-        const uploadTimeoutId = setTimeout(() => uploadController.abort(), 30000); // 30 second timeout per chunk
-        
-        console.log(`Uploading chunk ${i + 1}/${totalChunks}`);
-        
-        await this.makeRequest<void>(`/videos/${guid}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/octet-stream',
-            'Content-Range': `bytes ${start}-${end-1}/${arrayBuffer.byteLength}`
-          },
-          body: chunk,
-          signal: uploadController.signal
-        });
-        
-        clearTimeout(uploadTimeoutId);
-        console.log(`Chunk ${i + 1} uploaded successfully`);
-      }
-
-      // Return the CDN URL for the uploaded video
-      const videoUrl = `${this.config.cdnUrl}/${guid}/play.mp4`;
-      console.log('Upload completed successfully:', videoUrl);
-      return videoUrl;
-
-    } catch (error: unknown) {
-      if (error instanceof Error) {
-        if (error.name === 'AbortError') {
-          throw new Error('Upload timeout - please try again with a smaller file or check your connection');
-        }
-        console.error('Bunny.net upload error:', error);
-        throw error;
-      }
-      const errorMessage = error instanceof Object ? JSON.stringify(error) : String(error);
-      throw new Error(`Upload failed: ${errorMessage}`);
-    }
+  async uploadVideo(guid: string, fileData: Buffer | ArrayBuffer): Promise<void> {
+    await this.makeRequest<void>(`/videos/${guid}`, {
+      method: 'PUT',
+      body: fileData
+    });
   }
 
   async deleteVideo(guid: string): Promise<void> {
@@ -149,6 +91,20 @@ export class BunnyVideoService {
     }
   }
 
+  async listVideos(page: number = 1, perPage: number = 100): Promise<BunnyVideoCollection> {
+    try {
+      console.log('Fetching video list from Bunny.net:', { page, perPage });
+      const response = await this.makeRequest<BunnyVideoCollection>(
+        `/videos?page=${page}&itemsPerPage=${perPage}`
+      );
+      console.log(`Retrieved ${response.items.length} videos`);
+      return response;
+    } catch (error) {
+      console.error('List videos error:', error);
+      throw error;
+    }
+  }
+
   async updateVideoTitle(guid: string, title: string): Promise<void> {
     try {
       console.log('Updating video title in Bunny.net:', { guid, title });
@@ -162,20 +118,6 @@ export class BunnyVideoService {
       console.log('Video title updated successfully');
     } catch (error) {
       console.error('Update video title error:', error);
-      throw error;
-    }
-  }
-
-  async listVideos(page: number = 1, perPage: number = 100): Promise<BunnyVideoCollection> {
-    try {
-      console.log('Fetching video list from Bunny.net:', { page, perPage });
-      const response = await this.makeRequest<BunnyVideoCollection>(
-        `/videos?page=${page}&itemsPerPage=${perPage}`
-      );
-      console.log(`Retrieved ${response.items.length} videos`);
-      return response;
-    } catch (error) {
-      console.error('List videos error:', error);
       throw error;
     }
   }
