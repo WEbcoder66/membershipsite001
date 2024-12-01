@@ -1,10 +1,9 @@
 import { NextResponse } from 'next/server';
 import { headers } from 'next/headers';
 import { bunnyVideo } from '@/lib/bunnyService';
-import { ADMIN_CREDENTIALS } from '@/lib/adminConfig';
 
 const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB max file size
-export const maxDuration = 300; // 5 minutes timeout
+export const maxDuration = 60; // Set to max allowed for hobby plan (in seconds)
 export const runtime = 'nodejs';
 
 const ALLOWED_VIDEO_TYPES = [
@@ -27,7 +26,7 @@ async function validateFileUpload(file: File) {
 
 export async function POST(req: Request) {
   try {
-    // First, check if we have the required environment variables
+    // Verify environment variables
     if (!process.env.BUNNY_API_KEY || !process.env.BUNNY_LIBRARY_ID || !process.env.BUNNY_CDN_URL) {
       console.error('Missing Bunny.net configuration:', {
         hasApiKey: !!process.env.BUNNY_API_KEY,
@@ -35,15 +34,14 @@ export async function POST(req: Request) {
         hasCdnUrl: !!process.env.BUNNY_CDN_URL
       });
       return NextResponse.json(
-        { error: 'Bunny.net configuration missing' },
+        { error: 'Server configuration error' },
         { status: 500 }
       );
     }
 
-    // Verify admin authorization
+    // Verify auth
     const headersList = headers();
     const authHeader = headersList.get('authorization');
-    
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json(
         { error: 'Unauthorized' },
@@ -59,12 +57,12 @@ export async function POST(req: Request) {
       );
     }
 
+    // Get form data
     const formData = await req.formData();
     const file = formData.get('file') as File;
     const title = formData.get('title') as string;
-    const type = formData.get('type') as string;
 
-    if (!file || !title || !type) {
+    if (!file || !title) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
@@ -75,8 +73,7 @@ export async function POST(req: Request) {
       fileName: file.name,
       fileSize: file.size,
       fileType: file.type,
-      title,
-      type
+      title
     });
 
     // Validate file
@@ -90,32 +87,34 @@ export async function POST(req: Request) {
     }
 
     // Upload to Bunny.net
-    const videoUrl = await bunnyVideo.uploadVideo(file, title);
-    
-    // Extract video ID and create thumbnail URL
-    const videoId = videoUrl.split('/').slice(-2)[0];
-    const thumbnailUrl = `${process.env.BUNNY_CDN_URL}/${videoId}/thumbnail.jpg`;
+    try {
+      const videoUrl = await bunnyVideo.uploadVideo(file, title);
+      const videoId = videoUrl.split('/').slice(-2)[0];
+      const thumbnailUrl = `${process.env.BUNNY_CDN_URL}/${videoId}/thumbnail.jpg`;
 
-    console.log('Upload successful:', {
-      videoUrl,
-      thumbnailUrl,
-      videoId
-    });
+      console.log('Upload successful:', {
+        videoUrl,
+        thumbnailUrl,
+        videoId
+      });
 
-    return NextResponse.json({
-      success: true,
-      url: videoUrl,
-      thumbnailUrl,
-      videoId
-    });
-
+      return NextResponse.json({
+        success: true,
+        url: videoUrl,
+        thumbnailUrl,
+        videoId
+      });
+    } catch (uploadError) {
+      console.error('Bunny.net upload error:', uploadError);
+      return NextResponse.json(
+        { error: 'Failed to upload to Bunny.net' },
+        { status: 500 }
+      );
+    }
   } catch (error) {
-    console.error('Upload to Bunny.net failed:', error);
+    console.error('Upload error:', error);
     return NextResponse.json(
-      { 
-        error: 'Failed to upload to Bunny.net',
-        details: process.env.NODE_ENV === 'development' ? error : undefined
-      },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }

@@ -142,6 +142,11 @@ export default function ContentManager() {
       let mediaContent = undefined;
 
       if (file) {
+        // Add file size check
+        if (file.size > 50 * 1024 * 1024) { // 50MB limit
+          throw new Error('File size too large. Please upload a file smaller than 50MB.');
+        }
+
         setUploadProgress(0);
         const formData = new FormData();
         formData.append('file', file);
@@ -430,8 +435,7 @@ export default function ContentManager() {
                           className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
                         >
                           <X className="w-5 h-5" />
-                        </button>
-                      )}
+                        </button>)}
                     </div>
                   ))}
                   <button

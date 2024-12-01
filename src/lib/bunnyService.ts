@@ -61,39 +61,59 @@ export class BunnyVideoService {
 
   async uploadVideo(file: File, title: string): Promise<string> {
     try {
-      console.log('Creating video in Bunny.net library:', { title });
-
-      if (file.size > LIMITS.maxFileSize) {
-        throw new Error(`File size exceeds limit of ${LIMITS.maxFileSize / (1024 * 1024)}MB`);
-      }
-
+      // Step 1: Create video entry with shorter timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
       const createResponse = await this.makeRequest<{ guid: string }>('', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ title })
+        body: JSON.stringify({ title }),
+        signal: controller.signal
       });
-
+      clearTimeout(timeoutId);
       const { guid } = createResponse;
 
-      console.log('Uploading video file to Bunny.net:', { guid });
+      // Step 2: Upload video file with chunk handling
+      const chunkSize = 5 * 1024 * 1024; // 5MB chunks
       const arrayBuffer = await file.arrayBuffer();
-      await this.makeRequest<void>(`/videos/${guid}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/octet-stream'
-        },
-        body: arrayBuffer
-      });
+      const totalChunks = Math.ceil(arrayBuffer.byteLength / chunkSize);
+      
+      for (let i = 0; i < totalChunks; i++) {
+        const start = i * chunkSize;
+        const end = Math.min(start + chunkSize, arrayBuffer.byteLength);
+        const chunk = arrayBuffer.slice(start, end);
+        const uploadController = new AbortController();
+        const uploadTimeoutId = setTimeout(() => uploadController.abort(), 8000);
+        
+        await this.makeRequest<void>(`/videos/${guid}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/octet-stream',
+            'Content-Range': `bytes ${start}-${end-1}/${arrayBuffer.byteLength}`
+          },
+          body: chunk,
+          signal: uploadController.signal
+        });
+        
+        clearTimeout(uploadTimeoutId);
+      }
 
-      const videoUrl = `${this.config.cdnUrl}/${guid}/play.mp4`;
-      console.log('Video upload successful:', { videoUrl });
-      return videoUrl;
+      // Return the CDN URL
+      return `${this.config.cdnUrl}/${guid}/play.mp4`;
 
-    } catch (error) {
-      console.error('Bunny.net upload error:', error);
-      throw error;
+    } catch (error: unknown) { // Explicitly type error as unknown
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          throw new Error('Upload timeout - please try again with a smaller file or check your connection');
+        }
+        console.error('Bunny.net upload error:', error);
+        throw error;
+      }
+      // If error is not an Error instance, wrap it
+      const errorMessage = error instanceof Object ? JSON.stringify(error) : String(error);
+      throw new Error(`Upload failed: ${errorMessage}`);
     }
   }
 
