@@ -141,57 +141,71 @@ export default function ContentManager() {
     try {
       let mediaContent = undefined;
 
-      // Handle file uploads first if present
-      if (file && contentType !== 'post') {
+      if (file) {
+        setUploadProgress(0);
         const formData = new FormData();
         formData.append('file', file);
         formData.append('type', contentType);
         formData.append('title', title);
-
-        const uploadResponse = await fetch('/api/upload', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${user?.email}`,
-          },
-          body: formData
+        console.log('Preparing to upload:', {
+          fileName: file.name,
+          fileSize: file.size,
+          fileType: file.type,
+          contentType,
+          title
         });
-
-        if (!uploadResponse.ok) {
-          const errorData = await uploadResponse.json();
-          throw new Error(errorData.error || 'Failed to upload media');
-        }
-
-        const { url, thumbnailUrl } = await uploadResponse.json();
-
-        switch (contentType) {
-          case 'video':
-            mediaContent = {
-              video: {
-                url,
-                thumbnail: thumbnailUrl,
-                duration: '0:00',
-                title,
-                quality: 'HD'
-              }
-            };
-            break;
-          case 'gallery':
-            mediaContent = {
-              gallery: {
-                images: [url],
-                captions: [description]
-              }
-            };
-            break;
-          case 'audio':
-            mediaContent = {
-              audio: {
-                url,
-                duration: '0:00',
-                coverImage: thumbnailUrl
-              }
-            };
-            break;
+        
+        try {
+          const uploadResponse = await fetch('/api/upload', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${user?.email}`,
+            },
+            body: formData
+          });
+          
+          if (!uploadResponse.ok) {
+            const errorData = await uploadResponse.json();
+            console.error('Upload response error:', errorData);
+            throw new Error(errorData.error || 'Failed to upload media');
+          }
+          
+          const { url, thumbnailUrl, videoId } = await uploadResponse.json();
+          console.log('Upload successful:', { url, thumbnailUrl, videoId });
+          
+          switch (contentType) {
+            case 'video':
+              mediaContent = {
+                video: {
+                  url,
+                  thumbnail: thumbnailUrl,
+                  duration: '0:00',
+                  title,
+                  quality: 'HD'
+                }
+              };
+              break;
+            case 'gallery':
+              mediaContent = {
+                gallery: {
+                  images: [url],
+                  captions: [description]
+                }
+              };
+              break;
+            case 'audio':
+              mediaContent = {
+                audio: {
+                  url,
+                  duration: '0:00',
+                  coverImage: thumbnailUrl
+                }
+              };
+              break;
+          }
+        } catch (error) {
+          console.error('Upload error:', error);
+          throw error;
         }
       } else if (contentType === 'poll') {
         const pollOptionsObject: Record<string, number> = {};
@@ -434,7 +448,8 @@ export default function ContentManager() {
                     </label>
                     <input
                       type="datetime-local"
-                      value={pollEndDate}onChange={(e) => setPollEndDate(e.target.value)}
+                      value={pollEndDate}
+                      onChange={(e) => setPollEndDate(e.target.value)}
                       className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400"
                       required={contentType === 'poll'}
                     />
