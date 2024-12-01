@@ -22,11 +22,11 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export default function ContentManager() {
   const [activeTab, setActiveTab] = useState<'create' | 'manage'>('create');
-  const [contentType, setContentType] = useState<'post' | 'video' | 'gallery' | 'audio' | 'poll'>('post');
+  const [contentType, setContentType] = useState<'video' | 'gallery' | 'audio' | 'poll'>('video');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [file, setFile] = useState<File | null>(null);
-  const [selectedTier, setSelectedTier] = useState<'basic' | 'premium' | 'allAccess'>('basic');
+  const [membershipTier, setMembershipTier] = useState<'basic' | 'premium' | 'allAccess'>('basic');
   const [error, setError] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -62,12 +62,15 @@ export default function ContentManager() {
     setTitle('');
     setDescription('');
     setFile(null);
-    setSelectedTier('basic');
+    setMembershipTier('basic');
     setError('');
     setPollOptions(['', '']);
     setPollEndDate('');
     setShowPreview(false);
     setPreviewUrl('');
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
@@ -89,15 +92,102 @@ export default function ContentManager() {
     }
   };
 
-  const handleFileSelection = (selectedFile: File) => {
+  const handleFileSelection = async (selectedFile: File) => {
     setFile(selectedFile);
     setError('');
 
-    // Create preview URL for supported file types
-    if (contentType === 'video' || contentType === 'gallery' || contentType === 'audio') {
-      const url = URL.createObjectURL(selectedFile);
-      setPreviewUrl(url);
-      setShowPreview(true);
+    if (contentType === 'video') {
+      setIsUploading(true);
+      try {
+        // 1. Create video entry in Bunny.net
+        const createResponse = await fetch(
+          `https://video.bunnycdn.com/library/${process.env.NEXT_PUBLIC_BUNNY_LIBRARY_ID}/videos`,
+          {
+            method: 'POST',
+            headers: {
+              'AccessKey': process.env.NEXT_PUBLIC_BUNNY_API_KEY!,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ title })
+          }
+        );
+        
+        if (!createResponse.ok) {
+          throw new Error('Failed to create video entry');
+        }
+        
+        const { guid } = await createResponse.json();
+
+        // 2. Upload the actual file to Bunny.net
+        const uploadResponse = await fetch(
+          `https://video.bunnycdn.com/library/${process.env.NEXT_PUBLIC_BUNNY_LIBRARY_ID}/videos/${guid}`,
+          {
+            method: 'PUT',
+            headers: {
+              'AccessKey': process.env.NEXT_PUBLIC_BUNNY_API_KEY!
+            },
+            body: selectedFile
+          }
+        );
+
+        if (!uploadResponse.ok) {
+          throw new Error('Failed to upload video file');
+        }
+
+        // 3. Save metadata to MongoDB
+        const contentResponse = await fetch('/api/content', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${user?.email}`
+          },
+          body: JSON.stringify({
+            type: 'video',
+            title,
+            description,
+            tier: membershipTier,
+            mediaContent: {
+              video: {
+                url: `${process.env.NEXT_PUBLIC_BUNNY_CDN_URL}/${guid}/play.mp4`,
+                thumbnail: `${process.env.NEXT_PUBLIC_BUNNY_CDN_URL}/${guid}/thumbnail.jpg`,
+                title,
+                duration: '0:00',
+                quality: 'HD'
+              }
+            }
+          })
+        });
+
+        if (!contentResponse.ok) {
+          throw new Error('Failed to save content metadata');
+        }
+
+        // Create preview URL
+        const url = URL.createObjectURL(selectedFile);
+        setPreviewUrl(url);
+        setShowPreview(true);
+
+        setUploadProgress(100);
+        alert('Content uploaded successfully!');
+        resetForm();
+
+      } catch (err) {
+        console.error('Upload error:', err);
+        setError(err instanceof Error ? err.message : 'Failed to upload video');
+        setFile(null);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+      } finally {
+        setIsUploading(false);
+      }
+    } else {
+      // Create preview URL for supported file types
+      if (contentType === 'gallery' || contentType === 'audio') {
+        const url = URL.createObjectURL(selectedFile);
+        setPreviewUrl(url);
+        setShowPreview(true);
+      }
     }
   };
 
@@ -110,7 +200,7 @@ export default function ContentManager() {
       setError('Description is required');
       return false;
     }
-    if (contentType !== 'post' && contentType !== 'poll' && !file) {
+    if (contentType !== 'poll' && !file) {
       setError('Please select a file to upload');
       return false;
     }
@@ -135,134 +225,47 @@ export default function ContentManager() {
     e.preventDefault();
     if (!validateForm()) return;
 
-    setIsUploading(true);
-    setError('');
-    
-    try {
-      let mediaContent = undefined;
-
-      if (file) {
-        // Add file size check
-        if (file.size > 50 * 1024 * 1024) { // 50MB limit
-          throw new Error('File size too large. Please upload a file smaller than 50MB.');
-        }
-
-        setUploadProgress(0);
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('type', contentType);
-        formData.append('title', title);
-        console.log('Preparing to upload:', {
-          fileName: file.name,
-          fileSize: file.size,
-          fileType: file.type,
-          contentType,
-          title
-        });
-        
-        try {
-          const uploadResponse = await fetch('/api/upload', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${user?.email}`,
-            },
-            body: formData
-          });
-          
-          if (!uploadResponse.ok) {
-            const errorData = await uploadResponse.json();
-            console.error('Upload response error:', errorData);
-            throw new Error(errorData.error || 'Failed to upload media');
-          }
-          
-          const { url, thumbnailUrl, videoId } = await uploadResponse.json();
-          console.log('Upload successful:', { url, thumbnailUrl, videoId });
-          
-          switch (contentType) {
-            case 'video':
-              mediaContent = {
-                video: {
-                  url,
-                  thumbnail: thumbnailUrl,
-                  duration: '0:00',
-                  title,
-                  quality: 'HD'
-                }
-              };
-              break;
-            case 'gallery':
-              mediaContent = {
-                gallery: {
-                  images: [url],
-                  captions: [description]
-                }
-              };
-              break;
-            case 'audio':
-              mediaContent = {
-                audio: {
-                  url,
-                  duration: '0:00',
-                  coverImage: thumbnailUrl
-                }
-              };
-              break;
-          }
-        } catch (error) {
-          console.error('Upload error:', error);
-          throw error;
-        }
-      } else if (contentType === 'poll') {
+    if (contentType === 'poll') {
+      // Handle poll creation
+      try {
         const pollOptionsObject: Record<string, number> = {};
         pollOptions.forEach(option => {
           if (option.trim()) {
             pollOptionsObject[option.trim()] = 0;
           }
         });
-        
-        mediaContent = {
-          poll: {
-            options: pollOptionsObject,
-            endDate: pollEndDate,
-            multipleChoice: false
-          }
-        };
+
+        const response = await fetch('/api/content', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${user?.email}`
+          },
+          body: JSON.stringify({
+            type: 'poll',
+            title,
+            description,
+            tier: membershipTier,
+            mediaContent: {
+              poll: {
+                options: pollOptionsObject,
+                endDate: pollEndDate,
+                multipleChoice: false
+              }
+            }
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to create poll');
+        }
+
+        resetForm();
+        alert('Poll created successfully!');
+      } catch (err) {
+        console.error('Poll creation error:', err);
+        setError(err instanceof Error ? err.message : 'Failed to create poll');
       }
-
-      // Create the content using the service
-      const newContent: Content = {
-        id: Date.now().toString(), // This will be replaced by the server
-        type: contentType,
-        title: title.trim(),
-        description: description.trim(),
-        content: contentType === 'post' ? description : undefined,
-        mediaContent,
-        tier: selectedTier,
-        createdAt: new Date().toISOString(),
-        isLocked: selectedTier !== 'basic',
-        likes: 0,
-        comments: 0,
-        interactions: {
-          reactions: [],
-          hasReported: false,
-          isSaved: false,
-          shares: 0
-        },
-        tags: [],
-        category: contentType.charAt(0).toUpperCase() + contentType.slice(1)
-      };
-
-      const savedContent = await addContent(newContent);
-      setUploadedContent(prev => [savedContent, ...prev]);
-      resetForm();
-      alert('Content created successfully!');
-
-    } catch (err) {
-      console.error('Content creation error:', err);
-      setError(err instanceof Error ? err.message : 'Failed to create content');
-    } finally {
-      setIsUploading(false);
-      setUploadProgress(0);
     }
   };
 
@@ -355,9 +358,8 @@ export default function ContentManager() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Content Type
                 </label>
-                <div className="grid grid-cols-5 gap-4">
+                <div className="grid grid-cols-4 gap-4">
                   {[
-                    { type: 'post', icon: FileText, label: 'Post' },
                     { type: 'video', icon: Video, label: 'Video' },
                     { type: 'gallery', icon: ImageIcon, label: 'Gallery' },
                     { type: 'audio', icon: Music, label: 'Audio' },
@@ -435,13 +437,15 @@ export default function ContentManager() {
                           className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
                         >
                           <X className="w-5 h-5" />
-                        </button>)}
+                        </button>
+                      )}
                     </div>
                   ))}
                   <button
                     type="button"
                     onClick={() => setPollOptions([...pollOptions, ''])}
-                    className="mt-2 flex items-center gap-2 text-yellow-600 hover:text-yellow-700">
+                    className="mt-2 flex items-center gap-2 text-yellow-600 hover:text-yellow-700"
+                  >
                     <PlusCircle className="w-4 h-4" />
                     Add Option
                   </button>
@@ -462,7 +466,7 @@ export default function ContentManager() {
               )}
 
               {/* File Upload */}
-              {contentType !== 'post' && contentType !== 'poll' && (
+              {contentType !== 'poll' && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Upload Content
@@ -547,8 +551,8 @@ export default function ContentManager() {
                   Access Tier
                 </label>
                 <select
-                  value={selectedTier}
-                  onChange={(e) => setSelectedTier(e.target.value as 'basic' | 'premium' | 'allAccess')}
+                  value={membershipTier}
+                  onChange={(e) => setMembershipTier(e.target.value as 'basic' | 'premium' | 'allAccess')}
                   className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400"
                 >
                   <option value="basic">Basic</option>
