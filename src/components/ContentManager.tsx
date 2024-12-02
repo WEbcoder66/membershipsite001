@@ -95,38 +95,41 @@ export default function ContentManager() {
   const handleFileSelection = async (selectedFile: File) => {
     setFile(selectedFile);
     setError('');
+    
     if (contentType === 'video') {
       setIsUploading(true);
       try {
-        // Step 1: Validate file and requirements first
         if (!title) {
           throw new Error('Please enter a title before uploading');
         }
-        console.log('Starting video upload process', {
-          title,
-          description,
-          tier: membershipTier,
-          fileSize: selectedFile.size
-        });
-        // Step 2: Upload video to Bunny.net
-        const formData = new FormData();
-        formData.append('file', selectedFile);
-        formData.append('title', title);
-        console.log('Uploading to Bunny.net...');
-        const videoResponse = await fetch('/api/videos', {
+        // Step 1: Get upload URL from Bunny.net
+        const response = await fetch('/api/videos/get-upload-url', {
           method: 'POST',
           headers: {
+            'Content-Type': 'application/json',
             'Authorization': `Bearer ${user?.email}`
           },
-          body: formData
+          body: JSON.stringify({ title })
         });
-        if (!videoResponse.ok) {
-          const videoError = await videoResponse.json();
-          throw new Error(videoError.error || 'Failed to upload to Bunny.net');
+        if (!response.ok) {
+          throw new Error('Failed to get upload URL');
         }
-        const videoResult = await videoResponse.json();
-        console.log('Bunny.net upload response:', videoResult);
-        // Step 3: Save content metadata
+        const { uploadUrl, videoId } = await response.json();
+
+        // Step 2: Upload directly to Bunny.net
+        const uploadResponse = await fetch(uploadUrl, {
+          method: 'PUT',
+          headers: {
+            'AccessKey': process.env.NEXT_PUBLIC_BUNNY_API_KEY!,
+            'Content-Type': 'application/octet-stream'
+          },
+          body: selectedFile
+        });
+        if (!uploadResponse.ok) {
+          throw new Error('Failed to upload to Bunny.net');
+        }
+
+        // Step 3: Save content metadata to your database
         const contentData = {
           type: 'video',
           title,
@@ -134,14 +137,12 @@ export default function ContentManager() {
           tier: membershipTier,
           mediaContent: {
             video: {
-              url: videoResult.video.url,
-              thumbnail: videoResult.video.thumbnail,
-              title: videoResult.video.title,
-              duration: videoResult.video.duration || '0:00'
+              url: `${process.env.NEXT_PUBLIC_BUNNY_CDN_URL}/${videoId}/play.mp4`,
+              thumbnail: `${process.env.NEXT_PUBLIC_BUNNY_CDN_URL}/${videoId}/thumbnail.jpg`,
+              title: title
             }
           }
         };
-        console.log('Saving content metadata:', contentData);
         const contentResponse = await fetch('/api/content', {
           method: 'POST',
           headers: {
@@ -151,10 +152,10 @@ export default function ContentManager() {
           body: JSON.stringify(contentData)
         });
         if (!contentResponse.ok) {
-          const contentError = await contentResponse.json();
-          throw new Error(`Failed to save content metadata: ${contentError.error || 'Unknown error'}`);
+          throw new Error('Failed to save content metadata');
         }
-        // Step 4: Create preview and finish up
+
+        // Success handling
         const previewUrl = URL.createObjectURL(selectedFile);
         setPreviewUrl(previewUrl);
         setShowPreview(true);

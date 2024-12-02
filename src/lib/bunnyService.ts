@@ -59,6 +59,52 @@ export class BunnyVideoService {
     return response.json();
   }
 
+  async getUploadUrl(title: string): Promise<{ id: string; uploadUrl: string }> {
+    try {
+      console.log('Getting upload URL for video:', { title });
+      const { guid } = await this.makeRequest<{ guid: string }>('/videos', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ title })
+      });
+      
+      const uploadUrl = `${this.API_BASE_URL}/${this.config.libraryId}/videos/${guid}`;
+      console.log('Upload URL generated successfully:', { guid, uploadUrl });
+      
+      return {
+        id: guid,
+        uploadUrl
+      };
+    } catch (error) {
+      console.error('Error getting upload URL:', error);
+      throw error;
+    }
+  }
+
+  async directUpload(uploadUrl: string, file: File): Promise<void> {
+    try {
+      console.log('Starting direct upload to:', uploadUrl);
+      const response = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: {
+          'AccessKey': this.config.apiKey,
+          'Content-Type': 'application/octet-stream'
+        },
+        body: file
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Upload failed: ${response.statusText}`);
+      }
+      console.log('Direct upload completed successfully');
+    } catch (error) {
+      console.error('Direct upload error:', error);
+      throw error;
+    }
+  }
+
   async createVideo(title: string): Promise<{ guid: string }> {
     return this.makeRequest<{ guid: string }>('/videos', {
       method: 'POST',
