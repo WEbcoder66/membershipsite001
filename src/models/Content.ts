@@ -1,11 +1,10 @@
-// src/models/Content.ts
 import mongoose from 'mongoose';
 
 const ContentSchema = new mongoose.Schema({
   type: {
     type: String,
     required: true,
-    enum: ['video', 'image', 'gallery', 'audio', 'poll']
+    enum: ['video', 'gallery', 'audio', 'poll']
   },
   title: {
     type: String,
@@ -19,19 +18,12 @@ const ContentSchema = new mongoose.Schema({
   tier: {
     type: String,
     required: true,
-    enum: ['basic', 'premium', 'allAccess']
+    enum: ['basic', 'premium', 'allAccess'],
+    default: 'basic'
   },
   isLocked: {
     type: Boolean,
     default: true
-  },
-  likes: {
-    type: Number,
-    default: 0
-  },
-  comments: {
-    type: Number,
-    default: 0
   },
   mediaContent: {
     video: {
@@ -48,13 +40,16 @@ const ContentSchema = new mongoose.Schema({
       duration: String
     },
     poll: {
-      options: Object,
+      options: mongoose.Schema.Types.Mixed,
       endDate: Date,
       multipleChoice: Boolean
     }
-  },
-  tags: [String],
-  category: String
+  }
+}, {
+  // This tells Mongoose which collection to use
+  collection: 'contents'
 });
 
-export default mongoose.models.Content || mongoose.model('Content', ContentSchema);
+// Check if the model exists before creating it
+const Content = mongoose.models.Content || mongoose.model('Content', ContentSchema);
+export default Content;

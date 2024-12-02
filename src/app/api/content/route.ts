@@ -3,69 +3,49 @@ import { headers } from 'next/headers';
 import dbConnect from '@/lib/mongodb';
 import Content from '@/models/Content';
 
-// Helper function to verify admin authentication
-const verifyAdmin = (headersList: Headers) => {
-  const authHeader = headersList.get('authorization');
-  if (!authHeader?.startsWith('Bearer ')) {
-    return false;
-  }
-  const userEmail = authHeader.split('Bearer ')[1];
-  return userEmail === process.env.NEXT_PUBLIC_ADMIN_EMAIL;
-};
-
-export async function GET() {
-  try {
-    await dbConnect();
-    const contents = await Content.find({}).sort({ createdAt: -1 });
-    return NextResponse.json(contents);
-  } catch (error) {
-    console.error('Content fetch error:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch content' },
-      { status: 500 }
-    );
-  }
-}
-
 export async function POST(req: Request) {
   try {
+    console.log('Content API: Starting request');
+    
     // Connect to MongoDB
     await dbConnect();
-    
-    // Verify admin authentication
+    console.log('Content API: MongoDB connected');
+
     const headersList = headers();
-    if (!verifyAdmin(headersList)) {
+    const authHeader = headersList.get('authorization');
+    
+    if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json(
-        { error: 'Unauthorized - Admin access required' },
+        { error: 'Unauthorized' },
         { status: 401 }
       );
     }
 
     const data = await req.json();
-    
-    // Validate required fields
-    if (!data.title || !data.type || !data.tier) {
-      return NextResponse.json(
-        { error: 'Missing required fields: title, type, and tier are required' },
-        { status: 400 }
-      );
-    }
+    console.log('Content API: Received data:', JSON.stringify(data, null, 2));
 
-    // Create content in MongoDB
     const content = await Content.create({
-      ...data,
-      createdAt: new Date(),
-      updatedAt: new Date()
+      type: data.type,
+      title: data.title,
+      description: data.description,
+      tier: data.tier,
+      mediaContent: data.mediaContent
     });
-    
+
+    console.log('Content API: Created content:', JSON.stringify(content, null, 2));
+
     return NextResponse.json({
       success: true,
       data: content
     });
+
   } catch (error) {
-    console.error('Content creation error:', error);
+    console.error('Content API Error:', error);
     return NextResponse.json(
-      { error: 'Failed to create content record' },
+      { 
+        error: 'Failed to create content',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      },
       { status: 500 }
     );
   }
