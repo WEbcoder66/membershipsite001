@@ -95,17 +95,96 @@ export default function ContentManager() {
   const handleFileSelection = async (selectedFile: File) => {
     setFile(selectedFile);
     setError('');
-
     if (contentType === 'video') {
       setIsUploading(true);
       try {
-        // Step 1: Create FormData with required fields
+        // Step 1: Validate file and requirements first
+        if (!title) {
+          throw new Error('Please enter a title before uploading');
+        }
+        console.log('Starting video upload process', {
+          title,
+          description,
+          tier: membershipTier,
+          fileSize: selectedFile.size
+        });
+        // Step 2: Upload video to Bunny.net
         const formData = new FormData();
         formData.append('file', selectedFile);
-        formData.append('title', title || selectedFile.name); // Use file name as fallback
+        formData.append('title', title);
+        console.log('Uploading to Bunny.net...');
+        const videoResponse = await fetch('/api/videos', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${user?.email}`
+          },
+          body: formData
+        });
+        if (!videoResponse.ok) {
+          const videoError = await videoResponse.json();
+          throw new Error(videoError.error || 'Failed to upload to Bunny.net');
+        }
+        const videoResult = await videoResponse.json();
+        console.log('Bunny.net upload response:', videoResult);
+        // Step 3: Save content metadata
+        const contentData = {
+          type: 'video',
+          title,
+          description: description || 'No description provided',
+          tier: membershipTier,
+          mediaContent: {
+            video: {
+              url: videoResult.video.url,
+              thumbnail: videoResult.video.thumbnail,
+              title: videoResult.video.title,
+              duration: videoResult.video.duration || '0:00'
+            }
+          }
+        };
+        console.log('Saving content metadata:', contentData);
+        const contentResponse = await fetch('/api/content', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${user?.email}`
+          },
+          body: JSON.stringify(contentData)
+        });
+        if (!contentResponse.ok) {
+          const contentError = await contentResponse.json();
+          throw new Error(`Failed to save content metadata: ${contentError.error || 'Unknown error'}`);
+        }
+        // Step 4: Create preview and finish up
+        const previewUrl = URL.createObjectURL(selectedFile);
+        setPreviewUrl(previewUrl);
+        setShowPreview(true);
+        setUploadProgress(100);
+        alert('Content uploaded successfully!');
+        resetForm();
+      } catch (err) {
+        console.error('Upload error:', err);
+        setError(err instanceof Error ? err.message : 'Failed to upload content');
+        setFile(null);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+      } finally {
+        setIsUploading(false);
+      }
+    } else if (contentType === 'gallery' || contentType === 'audio') {
+      try {
+        if (!title) {
+          throw new Error('Please enter a title before uploading');
+        }
+
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+        formData.append('title', title);
+
+        const endpoint = contentType === 'gallery' ? '/api/images' : '/api/audio';
+        console.log(`Uploading ${contentType} to ${endpoint}`);
         
-        // Step 2: Upload to your API
-        const response = await fetch('/api/videos', {
+        const response = await fetch(endpoint, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${user?.email}`
@@ -115,67 +194,51 @@ export default function ContentManager() {
 
         if (!response.ok) {
           const errorData = await response.json();
-          throw new Error(errorData.error || 'Failed to upload video');
+          throw new Error(errorData.error || `Failed to upload ${contentType}`);
         }
 
-        const { success, video } = await response.json();
+        const result = await response.json();
+        console.log(`${contentType} upload response:`, result);
 
-        if (!success || !video) {
-          throw new Error('Invalid response from server');
-        }
+        const contentData = {
+          type: contentType,
+          title,
+          description: description || 'No description provided',
+          tier: membershipTier,
+          mediaContent: contentType === 'gallery' 
+            ? { gallery: { images: [result.url] } }
+            : { audio: { url: result.url, title: result.title } }
+        };
 
-        // Step 3: Save content metadata
+        console.log('Saving content metadata:', contentData);
         const contentResponse = await fetch('/api/content', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${user?.email}`
           },
-          body: JSON.stringify({
-            type: 'video',
-            title: title || video.title,
-            description,
-            tier: membershipTier,
-            mediaContent: {
-              video: {
-                url: video.url,
-                thumbnail: video.thumbnail,
-                title: video.title,
-                duration: '0:00' // You can update this if Bunny.net provides duration
-              }
-            }
-          })
+          body: JSON.stringify(contentData)
         });
 
         if (!contentResponse.ok) {
-          throw new Error('Failed to save content metadata');
+          const contentError = await contentResponse.json();
+          throw new Error(`Failed to save content metadata: ${contentError.error || 'Unknown error'}`);
         }
 
-        // Create preview URL
-        const previewUrl = URL.createObjectURL(selectedFile);
-        setPreviewUrl(previewUrl);
+        const url = URL.createObjectURL(selectedFile);
+        setPreviewUrl(url);
         setShowPreview(true);
 
-        setUploadProgress(100);
-        alert('Content uploaded successfully!');
+        alert(`${contentType} uploaded successfully!`);
         resetForm();
 
       } catch (err) {
         console.error('Upload error:', err);
-        setError(err instanceof Error ? err.message : 'Failed to upload video');
+        setError(err instanceof Error ? err.message : `Failed to upload ${contentType}`);
         setFile(null);
         if (fileInputRef.current) {
           fileInputRef.current.value = '';
         }
-      } finally {
-        setIsUploading(false);
-      }
-    } else {
-      // Handle other content types...
-      if (contentType === 'gallery' || contentType === 'audio') {
-        const url = URL.createObjectURL(selectedFile);
-        setPreviewUrl(url);
-        setShowPreview(true);
       }
     }
   };
@@ -223,29 +286,34 @@ export default function ContentManager() {
           }
         });
 
+        const contentData = {
+          type: 'poll',
+          title,
+          description,
+          tier: membershipTier,
+          mediaContent: {
+            poll: {
+              options: pollOptionsObject,
+              endDate: pollEndDate,
+              multipleChoice: false
+            }
+          }
+        };
+
         const response = await fetch('/api/content', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${user?.email}`
           },
-          body: JSON.stringify({
-            type: 'poll',
-            title,
-            description,
-            tier: membershipTier,
-            mediaContent: {
-              poll: {
-                options: pollOptionsObject,
-                endDate: pollEndDate,
-                multipleChoice: false
-              }
-            }
-          })
+          body: JSON.stringify(contentData)
         });
 
+        const result = await response.json();
+        console.log('Poll creation response:', result);
+
         if (!response.ok) {
-          throw new Error('Failed to create poll');
+          throw new Error(result.error || 'Failed to create poll');
         }
 
         resetForm();
@@ -442,7 +510,8 @@ export default function ContentManager() {
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Poll End Date
                     </label>
-                    <input type="datetime-local"
+                    <input
+                      type="datetime-local"
                       value={pollEndDate}
                       onChange={(e) => setPollEndDate(e.target.value)}
                       className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400"
