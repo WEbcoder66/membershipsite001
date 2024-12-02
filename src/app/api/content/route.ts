@@ -43,11 +43,15 @@ export async function POST(req: Request) {
 // Handle GET requests for retrieving content
 export async function GET() {
   try {
-    console.log('Content API GET: Starting request');
+    console.log('Content API: Starting GET request');
     await dbConnect();
-    
+    console.log('Content API: MongoDB connected');
     const contents = await Content.find({}).sort({ createdAt: -1 });
-    return NextResponse.json({ success: true, data: contents });
+    console.log('Content API: Retrieved contents:', contents);
+    return NextResponse.json({
+      success: true,
+      data: contents
+    });
   } catch (error) {
     console.error('Content API GET Error:', error);
     return NextResponse.json(

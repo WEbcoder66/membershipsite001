@@ -12,9 +12,7 @@ import {
   ChevronUp,
   Sparkles
 } from 'lucide-react';
-import Image from 'next/image';
 import { Content } from '@/lib/types';
-import { getAllContent } from '@/lib/contentService';
 import VideoPlayer from '@/components/Feed/VideoPlayer';
 import CommentSection from '@/components/CommentSection';
 import { formatDate } from '@/lib/utils';
@@ -33,27 +31,35 @@ export default function Feed({ setActiveTab }: FeedProps) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    loadContent();
+    const fetchContent = async () => {
+      try {
+        console.log('Fetching content...');
+        const response = await fetch('/api/content');
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch content');
+        }
+
+        const data = await response.json();
+        console.log('Fetched content:', data);
+        setContent(data.data || []);
+      } catch (err) {
+        console.error('Error fetching content:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load content');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchContent();
   }, []);
 
-  const loadContent = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      const loadedContent = await getAllContent();
-      setContent(loadedContent);
-    } catch (error) {
-      console.error('Error loading content:', error);
-      setError('Failed to load content. Please try again later.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const canAccess = (contentTier: string) => {
+  const hasAccess = (requiredTier: string): boolean => {
     if (!user?.membershipTier) return false;
     const tiers = { basic: 1, premium: 2, allAccess: 3 };
-    return tiers[user.membershipTier as keyof typeof tiers] >= tiers[contentTier as keyof typeof tiers];
+    const userTierLevel = tiers[user.membershipTier as keyof typeof tiers] || 0;
+    const requiredLevel = tiers[requiredTier as keyof typeof tiers] || 0;
+    return userTierLevel >= requiredLevel;
   };
 
   const togglePostExpansion = (postId: string) => {
@@ -118,7 +124,7 @@ export default function Feed({ setActiveTab }: FeedProps) {
         <div className="text-center text-red-600">
           <p>{error}</p>
           <button 
-            onClick={loadContent}
+            onClick={() => window.location.reload()}
             className="mt-4 bg-yellow-400 text-black px-6 py-2 rounded-lg font-medium hover:bg-yellow-500"
           >
             Try Again
@@ -177,7 +183,7 @@ export default function Feed({ setActiveTab }: FeedProps) {
                 />
               ) : (
                 <div className="p-4">
-                  {!canAccess(post.tier) ? (
+                  {!hasAccess(post.tier) ? (
                     <div className="bg-gray-50 p-6 rounded-lg text-center">
                       <Lock className="w-8 h-8 mx-auto mb-2 text-gray-400" />
                       <p className="text-gray-600 mb-4">
