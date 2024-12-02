@@ -102,44 +102,41 @@ export default function ContentManager() {
         if (!title) {
           throw new Error('Please enter a title before uploading');
         }
-        // Step 1: Get upload URL from Bunny.net
-        const response = await fetch('/api/videos/get-upload-url', {
+        
+        // Create FormData with all necessary information
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+        formData.append('title', title);
+        formData.append('description', description);
+        formData.append('tier', membershipTier);
+        
+        // Single request to handle everything
+        const response = await fetch('/api/videos/upload', {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json',
             'Authorization': `Bearer ${user?.email}`
           },
-          body: JSON.stringify({ title })
+          body: formData
         });
+        
         if (!response.ok) {
-          throw new Error('Failed to get upload URL');
+          const error = await response.json();
+          throw new Error(error.message || 'Failed to upload video');
         }
-        const { uploadUrl, videoId } = await response.json();
-
-        // Step 2: Upload directly to Bunny.net
-        const uploadResponse = await fetch(uploadUrl, {
-          method: 'PUT',
-          headers: {
-            'AccessKey': process.env.NEXT_PUBLIC_BUNNY_API_KEY!,
-            'Content-Type': 'application/octet-stream'
-          },
-          body: selectedFile
-        });
-        if (!uploadResponse.ok) {
-          throw new Error('Failed to upload to Bunny.net');
-        }
-
-        // Step 3: Save content metadata to your database
+        
+        const { success, videoUrl, thumbnailUrl } = await response.json();
+        
+        // Save content metadata
         const contentData = {
           type: 'video',
           title,
-          description: description || 'No description provided',
+          description,
           tier: membershipTier,
           mediaContent: {
             video: {
-              url: `${process.env.NEXT_PUBLIC_BUNNY_CDN_URL}/${videoId}/play.mp4`,
-              thumbnail: `${process.env.NEXT_PUBLIC_BUNNY_CDN_URL}/${videoId}/thumbnail.jpg`,
-              title: title
+              url: videoUrl,
+              thumbnail: thumbnailUrl,
+              title
             }
           }
         };
@@ -154,8 +151,7 @@ export default function ContentManager() {
         if (!contentResponse.ok) {
           throw new Error('Failed to save content metadata');
         }
-
-        // Success handling
+        // Create preview
         const previewUrl = URL.createObjectURL(selectedFile);
         setPreviewUrl(previewUrl);
         setShowPreview(true);
@@ -181,6 +177,8 @@ export default function ContentManager() {
         const formData = new FormData();
         formData.append('file', selectedFile);
         formData.append('title', title);
+        formData.append('description', description);
+        formData.append('tier', membershipTier);
 
         const endpoint = contentType === 'gallery' ? '/api/images' : '/api/audio';
         console.log(`Uploading ${contentType} to ${endpoint}`);
@@ -310,11 +308,9 @@ export default function ContentManager() {
           body: JSON.stringify(contentData)
         });
 
-        const result = await response.json();
-        console.log('Poll creation response:', result);
-
         if (!response.ok) {
-          throw new Error(result.error || 'Failed to create poll');
+          const error = await response.json();
+          throw new Error(error.message || 'Failed to create poll');
         }
 
         resetForm();
@@ -452,7 +448,7 @@ export default function ContentManager() {
                   placeholder="Enter title..."
                   required
                 />
-              </div>
+				</div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
