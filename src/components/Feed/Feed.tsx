@@ -33,15 +33,13 @@ export default function Feed({ setActiveTab }: FeedProps) {
   useEffect(() => {
     const fetchContent = async () => {
       try {
-        console.log('Fetching content...');
         const response = await fetch('/api/content');
-        
-        if (!response.ok) {
-          throw new Error('Failed to fetch content');
-        }
-
         const data = await response.json();
-        console.log('Fetched content:', data);
+        console.log('Video URLs:', data.data.map((item: any) => ({
+          title: item.title,
+          url: item?.mediaContent?.video?.url,
+          thumbnail: item?.mediaContent?.video?.thumbnail
+        })));
         setContent(data.data || []);
       } catch (err) {
         console.error('Error fetching content:', err);
@@ -173,14 +171,35 @@ export default function Feed({ setActiveTab }: FeedProps) {
               </div>
 
               {post.type === 'video' && post.mediaContent?.video ? (
-                <VideoPlayer
-                  url={post.mediaContent.video.url}
-                  thumbnail={post.mediaContent.video.thumbnail}
-                  title={post.title}
-                  requiredTier={post.tier}
-                  duration={post.mediaContent.video.duration}
-                  setActiveTab={setActiveTab}
-                />
+                <div className="aspect-video relative">
+                  {user && hasAccess(post.tier) ? (
+                    <video
+                      className="w-full h-full"
+                      controls
+                      playsInline
+                      poster={post.mediaContent.video.thumbnail}
+                    >
+                      <source 
+                        src={post.mediaContent.video.url} 
+                        type="video/mp4"
+                      />
+                      Your browser does not support the video tag.
+                    </video>
+                  ) : (
+                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                      <div className="text-center text-white">
+                        <Lock className="w-12 h-12 mx-auto mb-2" />
+                        <p>This content is for {post.tier} members</p>
+                        <button
+                          onClick={() => setActiveTab('membership')}
+                          className="mt-4 bg-yellow-400 text-black px-4 py-2 rounded-lg"
+                        >
+                          Upgrade to {post.tier}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               ) : (
                 <div className="p-4">
                   {!hasAccess(post.tier) ? (
