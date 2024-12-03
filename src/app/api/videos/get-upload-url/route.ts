@@ -4,9 +4,8 @@ import { bunnyVideo } from '@/lib/bunnyService';
 import { ADMIN_CREDENTIALS } from '@/lib/adminConfig';
 
 // Route Segment Config
-export const maxDuration = 60; // Reduced timeout to 60 seconds
+export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
-export const runtime = 'edge';
 
 // Verify admin authentication
 const verifyAdmin = (headersList: Headers) => {
@@ -22,11 +21,10 @@ const verifyAdmin = (headersList: Headers) => {
   }
 };
 
-// POST endpoint to upload a video
-export async function POST(req: Request) {
+// POST endpoint to get upload URL
+export async function POST(req: NextRequest) {
   try {
-    console.log('Starting video upload process');
-    // Verify admin authentication
+    console.log('Starting upload URL request process');
     const headersList = headers();
     const authHeader = headersList.get('authorization');
     
@@ -40,47 +38,40 @@ export async function POST(req: Request) {
       hasCdnUrl: !!process.env.BUNNY_CDN_URL
     });
 
-    const formData = await req.formData();
-    const file: File | null = formData.get('file') as unknown as File;
-    const title = formData.get('title') as string;
+    // Get title from request body
+    const { title } = await req.json();
 
-    if (!file || !title) {
+    if (!title) {
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { error: 'Title is required' },
         { status: 400 }
       );
     }
 
     try {
-      // Step 1: Create video
+      // Create video in Bunny.net to get upload URL
       console.log('Creating video with title:', title);
       const { guid } = await bunnyVideo.createVideo(title);
       console.log('Video created with GUID:', guid);
 
-      // Step 2: Upload video data
-      console.log('Converting file to ArrayBuffer');
-      const arrayBuffer = await file.arrayBuffer();
-      console.log('Uploading video data');
-      await bunnyVideo.uploadVideo(guid, arrayBuffer);
-      console.log('Video upload complete');
-
+      // Return upload URL and necessary credentials
       return NextResponse.json({
         success: true,
-        video: {
-          id: guid,
-          title,
-          url: `${process.env.BUNNY_CDN_URL}/${guid}/play.mp4`,
-          thumbnail: `${process.env.BUNNY_CDN_URL}/${guid}/thumbnail.jpg`
-        }
+        videoId: guid,
+        uploadUrl: `https://video.bunnycdn.com/library/${process.env.BUNNY_LIBRARY_ID}/videos/${guid}`,
+        accessKey: process.env.BUNNY_API_KEY,
+        videoUrl: `${process.env.BUNNY_CDN_URL}/${guid}/play.mp4`,
+        thumbnailUrl: `${process.env.BUNNY_CDN_URL}/${guid}/thumbnail.jpg`
       });
+
     } catch (err) {
       console.error('Bunny.net operation failed:', err);
       throw err;
     }
   } catch (error) {
-    console.error('Video upload error:', error);
+    console.error('Error getting upload URL:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to upload video' },
+      { error: error instanceof Error ? error.message : 'Failed to get upload URL' },
       { status: 500 }
     );
   }
@@ -89,7 +80,6 @@ export async function POST(req: Request) {
 // GET endpoint to fetch all videos
 export async function GET(req: Request) {
   try {
-    // Validate environment variables
     if (!process.env.BUNNY_API_KEY || !process.env.BUNNY_LIBRARY_ID) {
       console.error('Missing required environment variables');
       return NextResponse.json(
@@ -98,7 +88,6 @@ export async function GET(req: Request) {
       );
     }
 
-    // Verify admin authentication
     const headersList = headers();
     try {
       verifyAdmin(headersList);
@@ -109,15 +98,12 @@ export async function GET(req: Request) {
       );
     }
 
-    // Parse query parameters
     const url = new URL(req.url);
     const page = parseInt(url.searchParams.get('page') || '1');
     const perPage = parseInt(url.searchParams.get('perPage') || '100');
 
-    // Get videos from Bunny.net
     const videoCollection = await bunnyVideo.listVideos(page, perPage);
 
-    // Format the response
     const formattedVideos = videoCollection.items.map(video => ({
       id: video.guid,
       title: video.title,
@@ -148,7 +134,6 @@ export async function GET(req: Request) {
 // DELETE endpoint to remove a video
 export async function DELETE(req: Request) {
   try {
-    // Validate environment variables
     if (!process.env.BUNNY_API_KEY || !process.env.BUNNY_LIBRARY_ID) {
       console.error('Missing required environment variables');
       return NextResponse.json(
@@ -157,7 +142,6 @@ export async function DELETE(req: Request) {
       );
     }
 
-    // Verify admin authentication
     const headersList = headers();
     try {
       verifyAdmin(headersList);
@@ -168,7 +152,6 @@ export async function DELETE(req: Request) {
       );
     }
 
-    // Get video ID from request body
     const { videoId } = await req.json();
 
     if (!videoId) {
@@ -178,7 +161,6 @@ export async function DELETE(req: Request) {
       );
     }
 
-    // Delete video from Bunny.net
     await bunnyVideo.deleteVideo(videoId);
 
     return NextResponse.json({
@@ -198,7 +180,6 @@ export async function DELETE(req: Request) {
 // PUT endpoint to update video details
 export async function PUT(req: Request) {
   try {
-    // Validate environment variables
     if (!process.env.BUNNY_API_KEY || !process.env.BUNNY_LIBRARY_ID) {
       console.error('Missing required environment variables');
       return NextResponse.json(
@@ -207,7 +188,6 @@ export async function PUT(req: Request) {
       );
     }
 
-    // Verify admin authentication
     const headersList = headers();
     try {
       verifyAdmin(headersList);
@@ -218,7 +198,6 @@ export async function PUT(req: Request) {
       );
     }
 
-    // Get video details from request body
     const { videoId, title } = await req.json();
 
     if (!videoId || !title) {
@@ -228,7 +207,6 @@ export async function PUT(req: Request) {
       );
     }
 
-    // Update video title in Bunny.net
     await bunnyVideo.updateVideoTitle(videoId, title);
 
     return NextResponse.json({
@@ -246,13 +224,13 @@ export async function PUT(req: Request) {
 }
 
 // Handle OPTIONS requests for CORS
-export async function OPTIONS(request: Request) {
+export async function OPTIONS() {
   return NextResponse.json(
     {},
     {
       headers: {
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, DELETE, PUT, OPTIONS',
+        'Access-Control-Allow-Methods': 'GET, POST, DELETE, PUT, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type, Authorization'
       }
     }

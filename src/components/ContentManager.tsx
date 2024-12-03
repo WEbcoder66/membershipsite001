@@ -1,4 +1,3 @@
-// src/components/ContentManager.tsx
 'use client';
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
@@ -51,68 +50,9 @@ export default function ContentManager() {
   const [retryCount, setRetryCount] = useState(0);
   const [uploadQueue, setUploadQueue] = useState<File[]>([]);
   const [isProcessingQueue, setIsProcessingQueue] = useState(false);
-  const [abortController, setAbortController] = useState<AbortController | null>(null);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { user } = useAuth();
-
-  // Upload Status Component
-  const renderUploadStatus = () => {
-    if (uploadStatus === 'error') {
-      return (
-        <div className="flex items-center gap-2 text-red-600">
-          <AlertCircle className="w-5 h-5" />
-          <span>Upload failed</span>
-          <button
-            onClick={handleRetry}
-            className="text-yellow-600 hover:text-yellow-700 flex items-center gap-1"
-            disabled={retryCount >= MAX_RETRIES}
-          >
-            <RefreshCcw className="w-4 h-4" />
-            Retry
-          </button>
-        </div>
-      );
-    }
-    if (isUploading) {
-      return (
-        <div className="flex items-center gap-2">
-          <div className="flex-1">
-            <div className="text-sm text-gray-600 mb-1">
-              {uploadStatus === 'preparing' ? 'Preparing upload...' :
-               uploadStatus === 'uploading' ? 'Uploading...' :
-               uploadStatus === 'processing' ? 'Processing...' : ''}
-            </div>
-            <div className="w-full h-2 bg-gray-200 rounded-full">
-              <div
-                className="h-full bg-yellow-400 rounded-full transition-all duration-300"
-                style={{ width: `${uploadProgress}%` }}
-              />
-            </div>
-          </div>
-          <button
-            onClick={handleCancelUpload}
-            className="text-gray-600 hover:text-red-600"
-          >
-            <XCircle className="w-5 h-5" />
-          </button>
-        </div>
-      );
-    }
-    return null;
-  };
-
-  // Render queue status if there are items in the queue
-  const renderQueueStatus = () => {
-    if (uploadQueue.length > 0) {
-      return (
-        <div className="text-sm text-gray-600 mt-2">
-          {uploadQueue.length} file(s) queued for upload
-        </div>
-      );
-    }
-    return null;
-  };
 
   // Load content effect
   useEffect(() => {
@@ -132,15 +72,6 @@ export default function ContentManager() {
       loadContent();
     }
   }, [activeTab]);
-
-  // Cleanup effect
-  useEffect(() => {
-    return () => {
-      if (abortController) {
-        abortController.abort();
-      }
-    };
-  }, [abortController]);
 
   // File validation
   const validateFile = (file: File) => {
@@ -183,30 +114,6 @@ export default function ContentManager() {
     }
   };
 
-  // Handle retry
-  const handleRetry = async () => {
-    if (retryCount >= MAX_RETRIES) {
-      setError('Maximum retry attempts reached. Please try again later.');
-      return;
-    }
-    
-    setRetryCount(prev => prev + 1);
-    if (file) {
-      await handleFileSelection(file);
-    }
-  };
-
-  // Cancel upload
-  const handleCancelUpload = () => {
-    if (abortController) {
-      abortController.abort();
-      setIsUploading(false);
-      setUploadProgress(0);
-      setUploadStatus('idle');
-      setError('Upload cancelled');
-    }
-  };
-
   // Process upload queue
   const processQueue = async () => {
     if (isProcessingQueue || uploadQueue.length === 0) return;
@@ -222,6 +129,19 @@ export default function ContentManager() {
     setIsProcessingQueue(false);
   };
 
+  // Handle retry
+  const handleRetry = async () => {
+    if (retryCount >= MAX_RETRIES) {
+      setError('Maximum retry attempts reached. Please try again later.');
+      return;
+    }
+    
+    setRetryCount(prev => prev + 1);
+    if (file) {
+      await handleFileSelection(file);
+    }
+  };
+  
   // File selection handlers
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -255,106 +175,94 @@ export default function ContentManager() {
     setUploadStatus('preparing');
     
     try {
-      // Validate file before upload
       validateFile(selectedFile);
       
       if (!title) {
         throw new Error('Please enter a title before uploading');
       }
 
-      if (contentType === 'video') {
-        setIsUploading(true);
-        setUploadProgress(10);
+      setIsUploading(true);
+      setUploadProgress(10);
 
-        // Create new abort controller for this upload
-        const controller = new AbortController();
-        setAbortController(controller);
+      // First, get upload URL
+      const urlResponse = await fetch('/api/videos/get-upload-url', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${user?.email}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ title })
+      });
 
-        // Create FormData
-        const formData = new FormData();
-        formData.append('file', selectedFile);
-        formData.append('title', title);
-        formData.append('description', description);
-        formData.append('tier', membershipTier);
+      if (!urlResponse.ok) {
+        throw new Error('Failed to get upload URL');
+      }
 
-        // Start upload
-        setUploadStatus('uploading');
-        
-        // Simulate progress during upload
-        const progressInterval = setInterval(() => {
-          setUploadProgress(prev => {
-            if (prev < 90) return prev + 5;
-            return prev;
-          });
-        }, 1000);
+      const { uploadUrl, accessKey, videoUrl, thumbnailUrl, videoId } = await urlResponse.json();
 
-        const response = await fetch('/api/videos/get-upload-url', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${user?.email}`
-          },
-          body: formData,
-          signal: controller.signal
-        });
+      // Upload to Bunny.net
+      setUploadStatus('uploading');
+      setUploadProgress(30);
 
-        clearInterval(progressInterval);
+      const uploadResponse = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: {
+          'AccessKey': accessKey,
+          'Content-Type': 'application/octet-stream'
+        },
+        body: selectedFile
+      });
 
-        if (!response.ok) {
-          throw new Error('Failed to upload video');
-        }
+      if (!uploadResponse.ok) {
+        throw new Error('Failed to upload to Bunny.net');
+      }
 
-        setUploadProgress(95);
-        setUploadStatus('processing');
+      setUploadProgress(80);
+      setUploadStatus('processing');
 
-        const { videoUrl, thumbnailUrl } = await response.json();
-
-        // Save content metadata
-        const contentData = {
-          type: 'video',
-          title,
-          description,
-          tier: membershipTier,
-          mediaContent: {
-            video: {
-              url: videoUrl,
-              thumbnail: thumbnailUrl,
-              title
-            }
+      // Save content metadata
+      const contentData = {
+        type: 'video',
+        title,
+        description,
+        tier: membershipTier,
+        mediaContent: {
+          video: {
+            url: videoUrl,
+            thumbnail: thumbnailUrl,
+            videoId,
+            title
           }
-        };
-
-        const contentResponse = await fetch('/api/content', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${user?.email}`
-          },
-          body: JSON.stringify(contentData),
-          signal: controller.signal
-        });
-
-        if (!contentResponse.ok) {
-          throw new Error('Failed to save content metadata');
         }
+      };
 
-        setUploadProgress(100);
-        setUploadStatus('success');
-        alert('Content uploaded successfully!');
-        resetForm();
-        
-        // Refresh content list if on manage tab
-        if (activeTab === 'manage') {
-          const content = await getAllContent();
-          setUploadedContent(content);
-        }
+      const contentResponse = await fetch('/api/content', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${user?.email}`
+        },
+        body: JSON.stringify(contentData)
+      });
 
-        // Process next item in queue if exists
-        if (uploadQueue.length > 0) {
-          processQueue();
-        }
+      if (!contentResponse.ok) {
+        throw new Error('Failed to save content metadata');
+      }
 
-      } else if (contentType === 'gallery' || contentType === 'audio') {
-        // Similar implementation for gallery and audio...
+      setUploadProgress(100);
+      setUploadStatus('success');
+      alert('Content uploaded successfully!');
+      resetForm();
+
+      // Refresh content list if on manage tab
+      if (activeTab === 'manage') {
+        const content = await getAllContent();
+        setUploadedContent(content);
+      }
+
+      // Process next item in queue if exists
+      if (uploadQueue.length > 0) {
+        processQueue();
       }
 
     } catch (err) {
@@ -367,90 +275,6 @@ export default function ContentManager() {
       }
     } finally {
       setIsUploading(false);
-      setAbortController(null);
-    }
-  };
-
-  // Form validation
-  const validateForm = () => {
-    if (!title.trim()) {
-      setError('Title is required');
-      return false;
-    }
-    if (!description.trim()) {
-      setError('Description is required');
-      return false;
-    }
-    if (contentType !== 'poll' && !file) {
-      setError('Please select a file to upload');
-      return false;
-    }
-    if (contentType === 'poll') {
-      if (pollOptions.filter(opt => opt.trim()).length < 2) {
-        setError('At least 2 poll options are required');
-        return false;
-      }
-      if (!pollEndDate) {
-        setError('Poll end date is required');
-        return false;
-      }
-    }
-    if (!user?.isAdmin) {
-      setError('Admin access required');
-      return false;
-    }
-    return true;
-  };
-
-  // Form submission handler
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!validateForm()) return;
-    if (contentType === 'poll') {
-      try {
-        const pollOptionsObject: Record<string, number> = {};
-        pollOptions.forEach(option => {
-          if (option.trim()) {
-            pollOptionsObject[option.trim()] = 0;
-          }
-        });
-        const contentData = {
-          type: 'poll',
-          title,
-          description,
-          tier: membershipTier,
-          mediaContent: {
-            poll: {
-              options: pollOptionsObject,
-              endDate: pollEndDate,
-              multipleChoice: false
-            }
-          }
-        };
-        const response = await fetch('/api/content', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${user?.email}`
-          },
-          body: JSON.stringify(contentData)
-        });
-        if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.message || 'Failed to create poll');
-        }
-        resetForm();
-        alert('Poll created successfully!');
-        
-        // Refresh content list if on manage tab
-        if (activeTab === 'manage') {
-          const content = await getAllContent();
-          setUploadedContent(content);
-        }
-      } catch (err) {
-        console.error('Poll creation error:', err);
-        setError(err instanceof Error ? err.message : 'Failed to create poll');
-      }
     }
   };
 
@@ -464,6 +288,70 @@ export default function ContentManager() {
         console.error('Delete error:', err);
         setError('Failed to delete content');
       }
+    }
+  };
+
+  // Poll handling
+  const handleCreatePoll = async () => {
+    if (!title || !description || pollOptions.filter(opt => opt.trim()).length < 2) {
+      setError('Please fill in all required fields and provide at least 2 poll options');
+      return;
+    }
+
+    try {
+      const pollOptionsObject: Record<string, number> = {};
+      pollOptions.forEach(option => {
+        if (option.trim()) {
+          pollOptionsObject[option.trim()] = 0;
+        }
+      });
+
+      const contentData = {
+        type: 'poll',
+        title,
+        description,
+        tier: membershipTier,
+        mediaContent: {
+          poll: {
+            options: pollOptionsObject,
+            endDate: pollEndDate,
+            multipleChoice: false
+          }
+        }
+      };
+
+      const response = await fetch('/api/content', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${user?.email}`
+        },
+        body: JSON.stringify(contentData)
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create poll');
+      }
+
+      resetForm();
+      alert('Poll created successfully!');
+
+      if (activeTab === 'manage') {
+        const content = await getAllContent();
+        setUploadedContent(content);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create poll');
+    }
+  };
+
+  // Form submission handler
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (contentType === 'poll') {
+      await handleCreatePoll();
+    } else if (file) {
+      await handleFileSelection(file);
     }
   };
 
@@ -548,7 +436,7 @@ export default function ContentManager() {
                   type="text"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400"
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400 text-gray-900"
                   placeholder="Enter title..."
                   required
                 />
@@ -562,7 +450,7 @@ export default function ContentManager() {
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   rows={4}
-                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400"
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400 text-gray-900"
                   placeholder="Enter description..."
                   required
                 />
@@ -584,7 +472,7 @@ export default function ContentManager() {
                           newOptions[index] = e.target.value;
                           setPollOptions(newOptions);
                         }}
-                        className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400"
+                        className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400 text-gray-900"
                         placeholder={`Option ${index + 1}`}
                       />
                       {index >= 2 && (
@@ -606,7 +494,7 @@ export default function ContentManager() {
                     <PlusCircle className="w-4 h-4" />
                     Add Option
                   </button>
-                  
+
                   <div className="mt-4">
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Poll End Date
@@ -615,7 +503,7 @@ export default function ContentManager() {
                       type="datetime-local"
                       value={pollEndDate}
                       onChange={(e) => setPollEndDate(e.target.value)}
-                      className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400"
+                      className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400 text-gray-900"
                       required={contentType === 'poll'}
                     />
                   </div>
@@ -648,7 +536,17 @@ export default function ContentManager() {
                     {isUploading ? (
                       <div className="space-y-4">
                         <Loader2 className="w-8 h-8 text-yellow-400 animate-spin mx-auto" />
-                        {renderUploadStatus()}
+                        <div className="text-gray-600">
+                          {uploadStatus === 'preparing' ? 'Preparing upload...' :
+                           uploadStatus === 'uploading' ? 'Uploading...' :
+                           uploadStatus === 'processing' ? 'Processing...' : ''}
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div
+                            className="h-full bg-yellow-400 rounded-full transition-all duration-300"
+                            style={{ width: `${uploadProgress}%` }}
+                          />
+                        </div>
                       </div>
                     ) : (
                       <>
@@ -660,7 +558,6 @@ export default function ContentManager() {
                           type="button"
                           onClick={() => fileInputRef.current?.click()}
                           className="bg-yellow-400 text-black px-4 py-2 rounded-lg font-medium hover:bg-yellow-500"
-                          disabled={isUploading}
                         >
                           Select File
                         </button>
@@ -668,15 +565,13 @@ export default function ContentManager() {
                     )}
                   </div>
                   
-                  {renderQueueStatus()}
-                  
                   {file && !isUploading && (
                     <div className="mt-4">
                       <div className="flex items-center justify-between text-sm text-gray-600">
                         <span>{file.name}</span>
                         <span>{(file.size / (1024 * 1024)).toFixed(2)} MB</span>
                       </div>
-                    </div>
+                    </div> 
                   )}
                 </div>
               )}
@@ -689,7 +584,7 @@ export default function ContentManager() {
                 <select
                   value={membershipTier}
                   onChange={(e) => setMembershipTier(e.target.value as 'basic' | 'premium' | 'allAccess')}
-                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400"
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400 text-gray-900"
                 >
                   <option value="basic">Basic</option>
                   <option value="premium">Premium</option>
@@ -711,9 +606,10 @@ export default function ContentManager() {
           </div>
         )}
 
+        {/* Manage Content Tab */}
         {activeTab === 'manage' && (
           <div className="p-6">
-            <h2 className="text-xl font-bold mb-6">Manage Content</h2>
+            <h2 className="text-xl font-bold text-gray-900 mb-6">Manage Content</h2>
             {isLoadingContent ? (
               <div className="flex justify-center py-8">
                 <Loader2 className="w-8 h-8 text-yellow-400 animate-spin" />
@@ -770,3 +666,4 @@ export default function ContentManager() {
     </div>
   );
 }
+					
