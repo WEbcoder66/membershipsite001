@@ -1,44 +1,41 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { headers } from 'next/headers';
-import { bunnyVideo } from '@/lib/bunnyService';
-import { ADMIN_CREDENTIALS } from '@/lib/adminConfig';
+import { validateAdmin } from '@/lib/auth';
 
-// Route Segment Config
-export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
+export const maxDuration = 300; // 5 minutes
 
-// Verify admin authentication
-const verifyAdmin = (headersList: Headers) => {
-  const authHeader = headersList.get('authorization');
-  
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    throw new Error('Missing or invalid authorization header');
-  }
-  
-  const userEmail = authHeader.split('Bearer ')[1];
-  if (userEmail !== ADMIN_CREDENTIALS.email) {
-    throw new Error('Unauthorized - Admin access required');
+// Helper function to check video status
+const checkVideoStatus = async (videoId: string, apiKey: string) => {
+  try {
+    const response = await fetch(
+      `https://video.bunnycdn.com/library/${process.env.BUNNY_LIBRARY_ID}/videos/${videoId}`,
+      {
+        headers: {
+          'AccessKey': apiKey
+        }
+      }
+    );
+    if (!response.ok) return null;
+    const data = await response.json();
+    return data.status;
+  } catch (error) {
+    console.error('Error checking video status:', error);
+    return null;
   }
 };
 
-// POST endpoint to get upload URL
 export async function POST(req: NextRequest) {
   try {
-    console.log('Starting upload URL request process');
-    const headersList = headers();
-    const authHeader = headersList.get('authorization');
-    
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // Validate admin access
+    const adminValidation = await validateAdmin(req);
+    if (!adminValidation.isValid) {
+      return NextResponse.json(
+        { error: adminValidation.message || 'Unauthorized' }, 
+        { status: 401 }
+      );
     }
 
-    console.log('Checking environment variables:', {
-      hasApiKey: !!process.env.BUNNY_API_KEY,
-      hasLibraryId: !!process.env.BUNNY_LIBRARY_ID,
-      hasCdnUrl: !!process.env.BUNNY_CDN_URL
-    });
-
-    // Get title from request body
+    // Get the title from the request body
     const { title } = await req.json();
 
     if (!title) {
@@ -48,176 +45,73 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    try {
-      // Create video in Bunny.net to get upload URL
-      console.log('Creating video with title:', title);
-      const { guid } = await bunnyVideo.createVideo(title);
-      console.log('Video created with GUID:', guid);
-
-      // Return upload URL and necessary credentials
-      return NextResponse.json({
-        success: true,
-        videoId: guid,
-        uploadUrl: `https://video.bunnycdn.com/library/${process.env.BUNNY_LIBRARY_ID}/videos/${guid}`,
-        accessKey: process.env.BUNNY_API_KEY,
-        videoUrl: `${process.env.BUNNY_CDN_URL}/${guid}/play.mp4`,
-        thumbnailUrl: `${process.env.BUNNY_CDN_URL}/${guid}/thumbnail.jpg`
-      });
-
-    } catch (err) {
-      console.error('Bunny.net operation failed:', err);
-      throw err;
+    // Verify environment variables
+    if (!process.env.BUNNY_API_KEY || !process.env.BUNNY_LIBRARY_ID || !process.env.BUNNY_CDN_URL) {
+      console.error('Missing required environment variables');
+      return NextResponse.json(
+        { error: 'Server configuration error' },
+        { status: 500 }
+      );
     }
+
+    // Create video in Bunny.net
+    console.log('Creating video in Bunny.net:', { title });
+    const response = await fetch(
+      `https://video.bunnycdn.com/library/${process.env.BUNNY_LIBRARY_ID}/videos`, 
+      {
+        method: 'POST',
+        headers: {
+          'AccessKey': process.env.BUNNY_API_KEY,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          title,
+          collectionId: process.env.BUNNY_COLLECTION_ID // Optional: if you use collections
+        })
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Bunny.net error:', errorText);
+      throw new Error('Failed to create video');
+    }
+
+    const { guid: videoId } = await response.json();
+    console.log('Video created with ID:', videoId);
+
+    // Construct URLs
+    const uploadUrl = `https://video.bunnycdn.com/library/${process.env.BUNNY_LIBRARY_ID}/videos/${videoId}`;
+    const videoUrl = `${process.env.BUNNY_CDN_URL}/videos/${videoId}/play.mp4`;
+    const thumbnailUrl = `${process.env.BUNNY_CDN_URL}/videos/${videoId}/thumbnail.jpg`;
+
+    // Check if pull zone is configured correctly
+    try {
+      const statusCheck = await checkVideoStatus(videoId, process.env.BUNNY_API_KEY);
+      if (statusCheck === null) {
+        console.warn('Unable to verify video status, but continuing...');
+      }
+    } catch (error) {
+      console.warn('Error checking initial video status:', error);
+    }
+
+    // Return all necessary information
+    return NextResponse.json({
+      success: true,
+      videoId,
+      uploadUrl,
+      accessKey: process.env.BUNNY_API_KEY,
+      videoUrl,
+      thumbnailUrl
+    });
+
   } catch (error) {
     console.error('Error getting upload URL:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to get upload URL' },
-      { status: 500 }
-    );
-  }
-}
-
-// GET endpoint to fetch all videos
-export async function GET(req: Request) {
-  try {
-    if (!process.env.BUNNY_API_KEY || !process.env.BUNNY_LIBRARY_ID) {
-      console.error('Missing required environment variables');
-      return NextResponse.json(
-        { error: 'Server configuration error' },
-        { status: 500 }
-      );
-    }
-
-    const headersList = headers();
-    try {
-      verifyAdmin(headersList);
-    } catch (error) {
-      return NextResponse.json(
-        { error: error instanceof Error ? error.message : 'Authentication error' },
-        { status: 401 }
-      );
-    }
-
-    const url = new URL(req.url);
-    const page = parseInt(url.searchParams.get('page') || '1');
-    const perPage = parseInt(url.searchParams.get('perPage') || '100');
-
-    const videoCollection = await bunnyVideo.listVideos(page, perPage);
-
-    const formattedVideos = videoCollection.items.map(video => ({
-      id: video.guid,
-      title: video.title,
-      url: `${process.env.BUNNY_CDN_URL}/${video.guid}/play.mp4`,
-      thumbnail: `${process.env.BUNNY_CDN_URL}/${video.guid}/thumbnail.jpg`,
-      dateUploaded: video.dateUploaded,
-      views: video.views,
-      status: video.status,
-      size: video.storageSize
-    }));
-
-    return NextResponse.json({
-      success: true,
-      videos: formattedVideos,
-      totalItems: videoCollection.totalItems,
-      currentPage: page
-    });
-
-  } catch (error) {
-    console.error('Error fetching videos:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch videos' },
-      { status: 500 }
-    );
-  }
-}
-
-// DELETE endpoint to remove a video
-export async function DELETE(req: Request) {
-  try {
-    if (!process.env.BUNNY_API_KEY || !process.env.BUNNY_LIBRARY_ID) {
-      console.error('Missing required environment variables');
-      return NextResponse.json(
-        { error: 'Server configuration error' },
-        { status: 500 }
-      );
-    }
-
-    const headersList = headers();
-    try {
-      verifyAdmin(headersList);
-    } catch (error) {
-      return NextResponse.json(
-        { error: error instanceof Error ? error.message : 'Authentication error' },
-        { status: 401 }
-      );
-    }
-
-    const { videoId } = await req.json();
-
-    if (!videoId) {
-      return NextResponse.json(
-        { error: 'Video ID is required' },
-        { status: 400 }
-      );
-    }
-
-    await bunnyVideo.deleteVideo(videoId);
-
-    return NextResponse.json({
-      success: true,
-      message: 'Video deleted successfully'
-    });
-
-  } catch (error) {
-    console.error('Error deleting video:', error);
-    return NextResponse.json(
-      { error: 'Failed to delete video' },
-      { status: 500 }
-    );
-  }
-}
-
-// PUT endpoint to update video details
-export async function PUT(req: Request) {
-  try {
-    if (!process.env.BUNNY_API_KEY || !process.env.BUNNY_LIBRARY_ID) {
-      console.error('Missing required environment variables');
-      return NextResponse.json(
-        { error: 'Server configuration error' },
-        { status: 500 }
-      );
-    }
-
-    const headersList = headers();
-    try {
-      verifyAdmin(headersList);
-    } catch (error) {
-      return NextResponse.json(
-        { error: error instanceof Error ? error.message : 'Authentication error' },
-        { status: 401 }
-      );
-    }
-
-    const { videoId, title } = await req.json();
-
-    if (!videoId || !title) {
-      return NextResponse.json(
-        { error: 'Video ID and title are required' },
-        { status: 400 }
-      );
-    }
-
-    await bunnyVideo.updateVideoTitle(videoId, title);
-
-    return NextResponse.json({
-      success: true,
-      message: 'Video updated successfully'
-    });
-
-  } catch (error) {
-    console.error('Error updating video:', error);
-    return NextResponse.json(
-      { error: 'Failed to update video' },
+      { 
+        error: error instanceof Error ? error.message : 'Failed to get upload URL',
+        details: process.env.NODE_ENV === 'development' ? error : undefined
+      },
       { status: 500 }
     );
   }
@@ -230,7 +124,7 @@ export async function OPTIONS() {
     {
       headers: {
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, DELETE, PUT, OPTIONS',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type, Authorization'
       }
     }

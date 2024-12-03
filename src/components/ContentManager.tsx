@@ -31,6 +31,21 @@ const VALID_AUDIO_TYPES = ['audio/mpeg', 'audio/wav', 'audio/mp3'];
 
 type UploadStatus = 'idle' | 'preparing' | 'uploading' | 'processing' | 'success' | 'error';
 
+const checkVideoStatus = async (videoId: string, accessKey: string) => {
+  try {
+    const response = await fetch(`https://video.bunnycdn.com/library/${process.env.NEXT_PUBLIC_BUNNY_LIBRARY_ID}/videos/${videoId}`, {
+      headers: {
+        'AccessKey': accessKey
+      }
+    });
+    const data = await response.json();
+    return data.status; // 4 means encoded and ready
+  } catch (error) {
+    console.error('Error checking video status:', error);
+    return null;
+  }
+};
+
 export default function ContentManager() {
   // State variables
   const [activeTab, setActiveTab] = useState<'create' | 'manage'>('create');
@@ -54,7 +69,6 @@ export default function ContentManager() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { user } = useAuth();
 
-  // Load content effect
   useEffect(() => {
     const loadContent = async () => {
       try {
@@ -114,21 +128,6 @@ export default function ContentManager() {
     }
   };
 
-  // Process upload queue
-  const processQueue = async () => {
-    if (isProcessingQueue || uploadQueue.length === 0) return;
-    
-    setIsProcessingQueue(true);
-    
-    while (uploadQueue.length > 0) {
-      const nextFile = uploadQueue[0];
-      await handleFileSelection(nextFile);
-      setUploadQueue(prev => prev.slice(1));
-    }
-    
-    setIsProcessingQueue(false);
-  };
-
   // Handle retry
   const handleRetry = async () => {
     if (retryCount >= MAX_RETRIES) {
@@ -184,7 +183,7 @@ export default function ContentManager() {
       setIsUploading(true);
       setUploadProgress(10);
 
-      // First, get upload URL
+      // Get upload URL from our API
       const urlResponse = await fetch('/api/videos/get-upload-url', {
         method: 'POST',
         headers: {
@@ -195,7 +194,8 @@ export default function ContentManager() {
       });
 
       if (!urlResponse.ok) {
-        throw new Error('Failed to get upload URL');
+        const errorData = await urlResponse.json();
+        throw new Error(errorData.error || 'Failed to get upload URL');
       }
 
       const { uploadUrl, accessKey, videoUrl, thumbnailUrl, videoId } = await urlResponse.json();
@@ -217,8 +217,20 @@ export default function ContentManager() {
         throw new Error('Failed to upload to Bunny.net');
       }
 
-      setUploadProgress(80);
+      setUploadProgress(70);
       setUploadStatus('processing');
+
+      // Wait for video to be encoded
+      let encodingStatus;
+      do {
+        await new Promise(resolve => setTimeout(resolve, 2000)); // Poll every 2 seconds
+        encodingStatus = await checkVideoStatus(videoId, accessKey);
+        if (encodingStatus === null) {
+          throw new Error('Failed to check video status');
+        }
+      } while (encodingStatus !== 4); // 4 means encoded and ready
+
+      setUploadProgress(90);
 
       // Save content metadata
       const contentData = {
@@ -262,7 +274,9 @@ export default function ContentManager() {
 
       // Process next item in queue if exists
       if (uploadQueue.length > 0) {
-        processQueue();
+        const nextFile = uploadQueue[0];
+        setUploadQueue(prev => prev.slice(1));
+        await handleFileSelection(nextFile);
       }
 
     } catch (err) {
@@ -344,7 +358,7 @@ export default function ContentManager() {
       setError(err instanceof Error ? err.message : 'Failed to create poll');
     }
   };
-
+  
   // Form submission handler
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -353,6 +367,58 @@ export default function ContentManager() {
     } else if (file) {
       await handleFileSelection(file);
     }
+  };
+
+  // Upload Status Component
+  const renderUploadStatus = () => {
+    if (uploadStatus === 'error') {
+      return (
+        <div className="flex items-center gap-2 text-red-600">
+          <AlertCircle className="w-5 h-5" />
+          <span>Upload failed</span>
+          <button
+            onClick={handleRetry}
+            className="text-yellow-600 hover:text-yellow-700 flex items-center gap-1"
+            disabled={retryCount >= MAX_RETRIES}
+          >
+            <RefreshCcw className="w-4 h-4" />
+            Retry
+          </button>
+        </div>
+      );
+    }
+    if (isUploading) {
+      return (
+        <div className="flex items-center gap-2">
+          <div className="flex-1">
+            <div className="text-sm text-gray-600 mb-1">
+              {uploadStatus === 'preparing' ? 'Preparing upload...' :
+               uploadStatus === 'uploading' ? 'Uploading to Bunny.net...' :
+               uploadStatus === 'processing' ? 'Processing video...' : ''}
+            </div>
+            <div className="w-full h-2 bg-gray-200 rounded-full">
+              <div
+                className="h-full bg-yellow-400 rounded-full transition-all duration-300"
+                style={{ width: `${uploadProgress}%` }}
+              />
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  // Queue Status Component
+  const renderQueueStatus = () => {
+    if (uploadQueue.length > 0) {
+      return (
+        <div className="text-sm text-gray-600 mt-2">
+          {uploadQueue.length} file(s) queued for upload
+        </div>
+      );
+    }
+    return null;
   };
 
   return (
@@ -395,7 +461,7 @@ export default function ContentManager() {
       )}
 
       <div className="bg-white rounded-lg shadow-lg">
-        {activeTab === 'create' && (
+        {activeTab === 'create' ? (
           <div className="p-6">
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* Content Type Selection */}
@@ -456,61 +522,7 @@ export default function ContentManager() {
                 />
               </div>
 
-              {/* Poll Options */}
-              {contentType === 'poll' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Poll Options
-                  </label>
-                  {pollOptions.map((option, index) => (
-                    <div key={index} className="flex gap-2 mb-2">
-                      <input
-                        type="text"
-                        value={option}
-                        onChange={(e) => {
-                          const newOptions = [...pollOptions];
-                          newOptions[index] = e.target.value;
-                          setPollOptions(newOptions);
-                        }}
-                        className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400 text-gray-900"
-                        placeholder={`Option ${index + 1}`}
-                      />
-                      {index >= 2 && (
-                        <button
-                          type="button"
-                          onClick={() => setPollOptions(pollOptions.filter((_, i) => i !== index))}
-                          className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
-                        >
-                          <X className="w-5 h-5" />
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={() => setPollOptions([...pollOptions, ''])}
-                    className="mt-2 flex items-center gap-2 text-yellow-600 hover:text-yellow-700"
-                  >
-                    <PlusCircle className="w-4 h-4" />
-                    Add Option
-                  </button>
-
-                  <div className="mt-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Poll End Date
-                    </label>
-                    <input
-                      type="datetime-local"
-                      value={pollEndDate}
-                      onChange={(e) => setPollEndDate(e.target.value)}
-                      className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400 text-gray-900"
-                      required={contentType === 'poll'}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* File Upload */}
+              {/* File Upload Section */}
               {contentType !== 'poll' && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -536,17 +548,7 @@ export default function ContentManager() {
                     {isUploading ? (
                       <div className="space-y-4">
                         <Loader2 className="w-8 h-8 text-yellow-400 animate-spin mx-auto" />
-                        <div className="text-gray-600">
-                          {uploadStatus === 'preparing' ? 'Preparing upload...' :
-                           uploadStatus === 'uploading' ? 'Uploading...' :
-                           uploadStatus === 'processing' ? 'Processing...' : ''}
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div
-                            className="h-full bg-yellow-400 rounded-full transition-all duration-300"
-                            style={{ width: `${uploadProgress}%` }}
-                          />
-                        </div>
+                        {renderUploadStatus()}
                       </div>
                     ) : (
                       <>
@@ -564,15 +566,7 @@ export default function ContentManager() {
                       </>
                     )}
                   </div>
-                  
-                  {file && !isUploading && (
-                    <div className="mt-4">
-                      <div className="flex items-center justify-between text-sm text-gray-600">
-                        <span>{file.name}</span>
-                        <span>{(file.size / (1024 * 1024)).toFixed(2)} MB</span>
-                      </div>
-                    </div> 
-                  )}
+                  {renderQueueStatus()}
                 </div>
               )}
 
@@ -604,10 +598,7 @@ export default function ContentManager() {
               </button>
             </form>
           </div>
-        )}
-
-        {/* Manage Content Tab */}
-        {activeTab === 'manage' && (
+        ) : (
           <div className="p-6">
             <h2 className="text-xl font-bold text-gray-900 mb-6">Manage Content</h2>
             {isLoadingContent ? (
@@ -637,9 +628,6 @@ export default function ContentManager() {
                         <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-800">
                           {content.type}
                         </span>
-                        <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-800">
-                          {new Date(content.createdAt).toLocaleDateString()}
-                        </span>
                       </div>
                     </div>
                     <div className="flex gap-2 ml-4">
@@ -666,4 +654,3 @@ export default function ContentManager() {
     </div>
   );
 }
-					
