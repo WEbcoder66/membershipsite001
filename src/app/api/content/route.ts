@@ -16,18 +16,33 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const data = await req.json();
-    console.log('Content API POST: Received data:', data);
+    const { type, title, description, tier, mediaContent } = await req.json();
+    console.log('Content API POST: Received data:', { type, title, description, tier, mediaContent });
 
-    const content = await Content.create({
-      type: data.type,
-      title: data.title,
-      description: data.description || '',
-      tier: data.tier || 'basic',
-      mediaContent: data.mediaContent || {},
+    // Construct the content data properly
+    const contentData = {
+      type,
+      title,
+      description,
+      tier,
+      mediaContent: {
+        video: {
+          url: mediaContent?.video?.url || '',
+          thumbnail: mediaContent?.video?.thumbnail || '',
+          videoId: mediaContent?.video?.videoId || '',
+          title: mediaContent?.video?.title || ''
+        },
+        gallery: {
+          images: mediaContent?.gallery?.images || []
+        }
+      },
+      isLocked: true,
       createdAt: new Date(),
       updatedAt: new Date()
-    });
+    };
+
+    // Create content
+    const content = await Content.create(contentData);
 
     console.log('Content API POST: Content created:', content);
     return NextResponse.json({ success: true, data: content });
