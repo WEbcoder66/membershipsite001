@@ -10,12 +10,14 @@ import {
   Lock,
   ChevronDown,
   ChevronUp,
-  Sparkles
+  Sparkles,
+  Loader2
 } from 'lucide-react';
-import { Content } from '@/lib/types';
-import VideoPlayer from '@/components/Feed/VideoPlayer';
+import { Content, MembershipTier } from '@/lib/types';
+import VideoPlayer from '@/components/VideoPlayer';
 import CommentSection from '@/components/CommentSection';
 import { formatDate } from '@/lib/utils';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface FeedProps {
   setActiveTab: (tab: string) => void;
@@ -34,12 +36,11 @@ export default function Feed({ setActiveTab }: FeedProps) {
     const fetchContent = async () => {
       try {
         const response = await fetch('/api/content');
+        if (!response.ok) {
+          throw new Error('Failed to fetch content');
+        }
         const data = await response.json();
-        console.log('Video URLs:', data.data.map((item: any) => ({
-          title: item.title,
-          url: item?.mediaContent?.video?.url,
-          thumbnail: item?.mediaContent?.video?.thumbnail
-        })));
+        console.log('Content fetched:', data);
         setContent(data.data || []);
       } catch (err) {
         console.error('Error fetching content:', err);
@@ -89,10 +90,8 @@ export default function Feed({ setActiveTab }: FeedProps) {
       alert('Please sign in to like posts');
       return;
     }
+
     try {
-      // Here you would typically make an API call to update the like status
-      // await updateLikeStatus(postId);
-      
       setLikedPosts(prev => {
         const newSet = new Set(prev);
         if (newSet.has(postId)) {
@@ -102,16 +101,23 @@ export default function Feed({ setActiveTab }: FeedProps) {
         }
         return newSet;
       });
+
+      // Here you would typically make an API call to update the like status
+      // await fetch(`/api/content/${postId}/like`, {
+      //   method: 'POST',
+      //   headers: {
+      //     'Authorization': `Bearer ${user.email}`
+      //   }
+      // });
     } catch (error) {
       console.error('Error updating like status:', error);
-      alert('Failed to update like status. Please try again.');
     }
   };
 
   if (isLoading) {
     return (
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        <div className="text-center">Loading...</div>
+      <div className="max-w-4xl mx-auto px-4 py-8 flex justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-yellow-400" />
       </div>
     );
   }
@@ -119,23 +125,17 @@ export default function Feed({ setActiveTab }: FeedProps) {
   if (error) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-8">
-        <div className="text-center text-red-600">
-          <p>{error}</p>
-          <button 
-            onClick={() => window.location.reload()}
-            className="mt-4 bg-yellow-400 text-black px-6 py-2 rounded-lg font-medium hover:bg-yellow-500"
-          >
-            Try Again
-          </button>
-        </div>
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       </div>
     );
   }
 
-  if (content.length === 0) {
+  if (!content.length) {
     return (
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        <div className="text-center">No content available</div>
+      <div className="max-w-4xl mx-auto px-4 py-8 text-center">
+        <p className="text-gray-600">No content available</p>
       </div>
     );
   }
@@ -148,6 +148,7 @@ export default function Feed({ setActiveTab }: FeedProps) {
 
           return (
             <article key={post.id} className="bg-white rounded-lg shadow-lg overflow-hidden">
+              {/* Post Header */}
               <div className="p-4 border-b">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -170,36 +171,17 @@ export default function Feed({ setActiveTab }: FeedProps) {
                 </div>
               </div>
 
+              {/* Post Content */}
               {post.type === 'video' && post.mediaContent?.video ? (
-                <div className="aspect-video relative">
-                  {user && hasAccess(post.tier) ? (
-                    <video
-                      className="w-full h-full"
-                      controls
-                      playsInline
-                      poster={post.mediaContent.video.thumbnail}
-                    >
-                      <source 
-                        src={post.mediaContent.video.url} 
-                        type="video/mp4"
-                      />
-                      Your browser does not support the video tag.
-                    </video>
-                  ) : (
-                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                      <div className="text-center text-white">
-                        <Lock className="w-12 h-12 mx-auto mb-2" />
-                        <p>This content is for {post.tier} members</p>
-                        <button
-                          onClick={() => setActiveTab('membership')}
-                          className="mt-4 bg-yellow-400 text-black px-4 py-2 rounded-lg"
-                        >
-                          Upgrade to {post.tier}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                <VideoPlayer
+                  url={post.mediaContent.video.url}
+                  thumbnail={post.mediaContent.video.thumbnail}
+                  title={post.title}
+                  requiredTier={post.tier as MembershipTier}
+                  duration={post.mediaContent.video.duration}
+                  setActiveTab={setActiveTab}
+                  videoId={post.mediaContent.video.videoId}
+                />
               ) : (
                 <div className="p-4">
                   {!hasAccess(post.tier) ? (
@@ -220,7 +202,7 @@ export default function Feed({ setActiveTab }: FeedProps) {
                       <p className={`text-gray-800 ${!expandedPosts.has(post.id) && 'line-clamp-3'}`}>
                         {post.content || post.description}
                       </p>
-                      {(post.content || post.description).length > 150 && (
+                      {(post.content || post.description)?.length > 150 && (
                         <button
                           onClick={() => togglePostExpansion(post.id)}
                           className="text-yellow-600 hover:text-yellow-700 text-sm mt-2 flex items-center gap-1"
@@ -237,6 +219,7 @@ export default function Feed({ setActiveTab }: FeedProps) {
                 </div>
               )}
 
+              {/* Post Actions */}
               <div className="px-4 py-3 border-t bg-gray-50 flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <button 
@@ -269,6 +252,7 @@ export default function Feed({ setActiveTab }: FeedProps) {
                 </div>
               </div>
 
+              {/* Comments Section */}
               {expandedComments.has(post.id) && (
                 <CommentSection postId={post.id} />
               )}

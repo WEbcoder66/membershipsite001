@@ -47,6 +47,7 @@ export interface Post {
       duration: string;
       title?: string;
       quality?: string;
+      videoId?: string;
       subtitles?: {
         language: string;
         url: string;
@@ -158,4 +159,93 @@ export interface Order {
   };
   createdAt: string;
   updatedAt: string;
+}
+
+export interface VideoMetadata {
+  id: string;
+  title: string;
+  description?: string;
+  duration: string;
+  thumbnail: string;
+  url: string;
+  quality?: string;
+  status: 'processing' | 'ready' | 'failed';
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UploadResponse {
+  success: boolean;
+  videoId?: string;
+  url?: string;
+  error?: string;
+}
+
+export interface AdminSettings {
+  siteTitle: string;
+  siteDescription: string;
+  logo?: string;
+  favicon?: string;
+  theme: {
+    primaryColor: string;
+    secondaryColor: string;
+    accentColor: string;
+  };
+  features: {
+    comments: boolean;
+    likes: boolean;
+    sharing: boolean;
+    profiles: boolean;
+  };
+  analytics: {
+    googleAnalyticsId?: string;
+    facebookPixelId?: string;
+  };
+  smtp?: {
+    host: string;
+    port: number;
+    user: string;
+    secure: boolean;
+  };
+  social: {
+    platform: string;
+    url: string;
+    icon: string;
+  }[];
+}
+
+export interface ContentStats {
+  totalPosts: number;
+  totalViews: number;
+  totalComments: number;
+  totalLikes: number;
+  topContent: {
+    id: string;
+    title: string;
+    views: number;
+    likes: number;
+  }[];
+  recentActivity: {
+    type: 'comment' | 'like' | 'view';
+    contentId: string;
+    userId: string;
+    timestamp: string;
+  }[];
+}
+
+export interface UserStats {
+  totalUsers: number;
+  activeUsers: number;
+  membershipBreakdown: Record<MembershipTier, number>;
+  recentSignups: {
+    id: string;
+    name: string;
+    email: string;
+    joinedAt: string;
+  }[];
+  engagementStats: {
+    commentsPerUser: number;
+    likesPerUser: number;
+    averageSessionDuration: number;
+  };
 }

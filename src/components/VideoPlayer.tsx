@@ -1,8 +1,7 @@
 'use client';
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { isValidBunnyVideoUrl } from '@/lib/videoUtils';
 import { 
   Play, 
   Pause, 
@@ -18,8 +17,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-
-type MembershipTier = 'basic' | 'premium' | 'allAccess';
+import { MembershipTier } from '@/lib/types';
 
 interface VideoPlayerProps {
   url: string;
@@ -53,76 +51,26 @@ export default function VideoPlayer({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
   const [hasAttemptedPlay, setHasAttemptedPlay] = useState(false);
-  const [isLiked, setIsLiked] = useState(false);
   const [isError, setIsError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
-  const [debugInfo, setDebugInfo] = useState({
-    urlValid: false,
-    loadAttempts: 0,
-    errors: [] as string[]
-  });
 
-  const MAX_RETRIES = 3;
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const controlsTimeoutRef = useRef<NodeJS.Timeout>();
 
-  const hasAccess = () => {
+  const MAX_RETRIES = 3;
+
+  const hasAccess = useCallback(() => {
     if (!user) return false;
     const tierLevels = { basic: 1, premium: 2, allAccess: 3 };
     const userTierLevel = tierLevels[user.membershipTier as keyof typeof tierLevels] || 0;
     const requiredLevel = tierLevels[requiredTier];
     return userTierLevel >= requiredLevel;
-  };
-
-  // Debug logging
-  useEffect(() => {
-    console.log('Video Debug Info:', {
-      url,
-      urlValid: isValidBunnyVideoUrl(url),
-      access: hasAccess(),
-      state: {
-        isPlaying,
-        isLoading,
-        isError,
-        hasAttemptedPlay,
-        videoDuration,
-        currentTime
-      },
-      debug: debugInfo
-    });
-  }, [url, isPlaying, isLoading, isError, hasAttemptedPlay, videoDuration, currentTime, debugInfo]);
-
-  // Network request check
-  useEffect(() => {
-    const checkVideo = async () => {
-      try {
-        const response = await fetch(url, { method: 'HEAD' });
-        console.log('Video URL Check:', {
-          url,
-          status: response.status,
-          headers: Object.fromEntries(response.headers.entries())
-        });
-      } catch (error) {
-        console.error('Video URL Check Failed:', error);
-      }
-    };
-    
-    if (url) {
-      checkVideo();
-    }
-  }, [url]);
+  }, [user, requiredTier]);
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-
-    if (!isValidBunnyVideoUrl(url)) {
-      setError('Invalid video URL');
-      setIsError(true);
-      setIsLoading(false);
-      return;
-    }
 
     const handlers = {
       loadedmetadata: () => {
@@ -145,29 +93,16 @@ export default function VideoPlayer({
       },
       error: async (e: Event) => {
         const videoError = (e.target as HTMLVideoElement).error;
-        const errorMessage = videoError?.message || 'Unknown error';
-        
-        console.error('Video Error:', {
-          message: errorMessage,
-          code: videoError?.code,
-          url,
-          currentTime: video.currentTime
-        });
-        
-        setDebugInfo(prev => ({
-          ...prev,
-          loadAttempts: prev.loadAttempts + 1,
-          errors: [...prev.errors, errorMessage]
-        }));
-        
+        console.error('Video Error:', videoError);
+
         if (retryCount < MAX_RETRIES) {
-          await new Promise(resolve => setTimeout(resolve, 2000));
           setRetryCount(prev => prev + 1);
+          await new Promise(resolve => setTimeout(resolve, 2000));
           video.load();
         } else {
           setIsError(true);
           setIsLoading(false);
-          setError(`Error playing video: ${errorMessage}`);
+          setError(videoError?.message || 'Failed to play video');
           setIsPlaying(false);
         }
       }
@@ -182,7 +117,7 @@ export default function VideoPlayer({
         video.removeEventListener(event, handler);
       });
     };
-  }, [retryCount, url]);
+  }, [retryCount]);
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -215,7 +150,6 @@ export default function VideoPlayer({
 
   const handleUpgradeClick = () => {
     if (!user) {
-      localStorage.setItem('returnToMembership', 'true');
       router.push('/auth/signup');
     } else {
       setActiveTab('membership');
@@ -237,21 +171,9 @@ export default function VideoPlayer({
       } else {
         await videoRef.current.play();
       }
-      setIsPlaying(!isPlaying);
     } catch (error) {
       console.error('Error playing video:', error);
       setError('Failed to play video. Please try again.');
-    }
-  };
-
-  const handleLike = async () => {
-    if (!videoId || !user) return;
-    
-    try {
-      setIsLiked(prev => !prev);
-    } catch (error) {
-      setIsLiked(prev => !prev);
-      console.error('Error liking video:', error);
     }
   };
 
@@ -297,7 +219,7 @@ export default function VideoPlayer({
         await document.exitFullscreen();
       }
     } catch (error) {
-      console.error("Error handling fullscreen:", error);
+      console.error('Error handling fullscreen:', error);
       setError('Failed to toggle fullscreen mode');
     }
   };
@@ -324,7 +246,7 @@ export default function VideoPlayer({
           </p>
           <button
             onClick={handleUpgradeClick}
-            className="bg-yellow-400 text-black px-6 py-2 rounded-lg font-medium hover:bg-yellow-500 transition-colors"
+            className="bg-yellow-400 text-black px-6 py-2 rounded-lg font-medium hover:bg-yellow-500"
           >
             Upgrade to {requiredTier}
           </button>
@@ -359,18 +281,8 @@ export default function VideoPlayer({
           poster={thumbnail}
           playsInline
           preload="metadata"
-          crossOrigin="anonymous"
-          onError={(e) => {
-            console.error('Video Error Event:', e, videoRef.current?.error);
-          }}
         >
-          <source 
-            src={url} 
-            type="video/mp4"
-            onError={(e) => {
-              console.error('Source Error Event:', e);
-            }}
-          />
+          <source src={url} type="video/mp4" />
           Your browser does not support the video tag.
         </video>
 
@@ -409,8 +321,10 @@ export default function VideoPlayer({
           </button>
         )}
 
+        {/* Video Controls */}
         {showControls && (
           <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 via-black/40 to-transparent p-4">
+            {/* Progress Bar */}
             <div 
               className="w-full h-1 bg-gray-600 rounded cursor-pointer mb-4"
               onClick={handleProgressClick}
@@ -421,6 +335,7 @@ export default function VideoPlayer({
               />
             </div>
 
+            {/* Control Buttons */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <button onClick={togglePlay} className="text-white hover:text-yellow-400">
@@ -441,17 +356,13 @@ export default function VideoPlayer({
                   <SkipForward className="w-6 h-6" />
                 </button>
 
-                <div className="relative group">
+                <div className="relative">
                   <button 
-onClick={toggleMute}
+                    onClick={toggleMute}
                     onMouseEnter={() => setShowVolumeSlider(true)}
                     className="text-white hover:text-yellow-400"
                   >
-                    {isMuted || volume === 0 ? (
-                      <VolumeX className="w-6 h-6" />
-                    ) : (
-                      <Volume2 className="w-6 h-6" />
-                    )}
+                    {isMuted ? <VolumeX className="w-6 h-6" /> : <Volume2 className="w-6 h-6" />}
                   </button>
 
                   {showVolumeSlider && (
@@ -478,13 +389,6 @@ onClick={toggleMute}
               </div>
 
               <div className="flex items-center gap-4">
-                <button 
-                  onClick={handleLike}
-                  className={`text-white hover:text-yellow-400 ${isLiked ? 'text-yellow-400' : ''}`}
-                >
-                  {/* Add your like icon here */}
-                </button>
-                
                 <button 
                   onClick={toggleFullscreen}
                   className="text-white hover:text-yellow-400"

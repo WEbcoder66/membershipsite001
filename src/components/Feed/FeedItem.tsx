@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { Post, MembershipTier } from '@/lib/types';
 import { formatDate, formatNumber } from '@/lib/utils';
-import VideoPlayer from './VideoPlayer';
+import VideoPlayer from '@/components/VideoPlayer';
 import ImageGallery from './ImageGallery';
 import AudioPlayer from './AudioPlayer';
 import PollComponent from './PollComponent';
