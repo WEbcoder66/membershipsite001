@@ -2,6 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+import { isValidBunnyVideoUrl } from '@/lib/videoUtils';
 import { 
   Play, 
   Pause, 
@@ -18,11 +19,13 @@ import {
 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
+type MembershipTier = 'basic' | 'premium' | 'allAccess';
+
 interface VideoPlayerProps {
   url: string;
   thumbnail?: string;
   title?: string;
-  requiredTier: 'basic' | 'premium' | 'allAccess';
+  requiredTier: MembershipTier;
   duration?: string;
   setActiveTab: (tab: string) => void;
   videoId?: string;
@@ -51,7 +54,10 @@ export default function VideoPlayer({
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
   const [hasAttemptedPlay, setHasAttemptedPlay] = useState(false);
   const [isLiked, setIsLiked] = useState(false);
+  const [isError, setIsError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
 
+  const MAX_RETRIES = 3;
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const controlsTimeoutRef = useRef<NodeJS.Timeout>();
@@ -67,6 +73,14 @@ export default function VideoPlayer({
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
+
+    // Add URL validation check
+    if (!isValidBunnyVideoUrl(url)) {
+      setError('Invalid video URL');
+      setIsError(true);
+      setIsLoading(false);
+      return;
+    }
 
     const handlers = {
       loadedmetadata: () => {
@@ -87,11 +101,20 @@ export default function VideoPlayer({
         setCurrentTime(0);
         video.currentTime = 0;
       },
-      error: (e: Event) => {
+      error: async (e: Event) => {
+        console.error('Video loading error:', e);
         const videoError = (e.target as HTMLVideoElement).error;
-        setError(videoError?.message || 'Error playing video');
-        setIsLoading(false);
-        setIsPlaying(false);
+        
+        if (retryCount < MAX_RETRIES) {
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          setRetryCount(prev => prev + 1);
+          video.load();
+        } else {
+          setIsError(true);
+          setIsLoading(false);
+          setError(videoError?.message || 'Error playing video');
+          setIsPlaying(false);
+        }
       }
     };
 
@@ -104,8 +127,9 @@ export default function VideoPlayer({
         video.removeEventListener(event, handler);
       });
     };
-  }, []);
+  }, [retryCount, url]); // Added url to dependencies
 
+  // Rest of the component code remains the same...
   useEffect(() => {
     const handleFullscreenChange = () => {
       setIsFullscreen(!!document.fullscreenElement);
@@ -170,14 +194,8 @@ export default function VideoPlayer({
     if (!videoId || !user) return;
     
     try {
-      // Optimistic update
       setIsLiked(prev => !prev);
-      
-      // You would typically make an API call here
-      // await incrementContentLikes(videoId);
-      
     } catch (error) {
-      // Revert on error
       setIsLiked(prev => !prev);
       console.error('Error liking video:', error);
     }
@@ -285,18 +303,40 @@ export default function VideoPlayer({
           className="w-full h-full"
           onClick={togglePlay}
           poster={thumbnail}
+          playsInline
+          preload="metadata"
         >
           <source src={url} type="video/mp4" />
           Your browser does not support the video tag.
         </video>
 
-        {isLoading && (
+        {isLoading && !isError && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/30">
             <Loader2 className="w-12 h-12 text-white animate-spin" />
           </div>
         )}
 
-        {!isPlaying && !isLoading && (
+        {isError && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/75">
+            <div className="text-center text-white">
+              <p className="mb-4">Failed to load video</p>
+              <button
+                onClick={() => {
+                  setIsError(false);
+                  setRetryCount(0);
+                  if (videoRef.current) {
+                    videoRef.current.load();
+                  }
+                }}
+                className="bg-yellow-400 text-black px-4 py-2 rounded-lg hover:bg-yellow-500"
+              >
+                Try Again
+              </button>
+            </div>
+          </div>
+        )}
+
+        {!isPlaying && !isLoading && !isError && (
           <button
             onClick={togglePlay}
             className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 p-4 rounded-full bg-black/50 hover:bg-black/70 transition-colors"
