@@ -56,6 +56,11 @@ export default function VideoPlayer({
   const [isLiked, setIsLiked] = useState(false);
   const [isError, setIsError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
+  const [debugInfo, setDebugInfo] = useState({
+    urlValid: false,
+    loadAttempts: 0,
+    errors: [] as string[]
+  });
 
   const MAX_RETRIES = 3;
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -70,11 +75,48 @@ export default function VideoPlayer({
     return userTierLevel >= requiredLevel;
   };
 
+  // Debug logging
+  useEffect(() => {
+    console.log('Video Debug Info:', {
+      url,
+      urlValid: isValidBunnyVideoUrl(url),
+      access: hasAccess(),
+      state: {
+        isPlaying,
+        isLoading,
+        isError,
+        hasAttemptedPlay,
+        videoDuration,
+        currentTime
+      },
+      debug: debugInfo
+    });
+  }, [url, isPlaying, isLoading, isError, hasAttemptedPlay, videoDuration, currentTime, debugInfo]);
+
+  // Network request check
+  useEffect(() => {
+    const checkVideo = async () => {
+      try {
+        const response = await fetch(url, { method: 'HEAD' });
+        console.log('Video URL Check:', {
+          url,
+          status: response.status,
+          headers: Object.fromEntries(response.headers.entries())
+        });
+      } catch (error) {
+        console.error('Video URL Check Failed:', error);
+      }
+    };
+    
+    if (url) {
+      checkVideo();
+    }
+  }, [url]);
+
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
-    // Add URL validation check
     if (!isValidBunnyVideoUrl(url)) {
       setError('Invalid video URL');
       setIsError(true);
@@ -102,8 +144,21 @@ export default function VideoPlayer({
         video.currentTime = 0;
       },
       error: async (e: Event) => {
-        console.error('Video loading error:', e);
         const videoError = (e.target as HTMLVideoElement).error;
+        const errorMessage = videoError?.message || 'Unknown error';
+        
+        console.error('Video Error:', {
+          message: errorMessage,
+          code: videoError?.code,
+          url,
+          currentTime: video.currentTime
+        });
+        
+        setDebugInfo(prev => ({
+          ...prev,
+          loadAttempts: prev.loadAttempts + 1,
+          errors: [...prev.errors, errorMessage]
+        }));
         
         if (retryCount < MAX_RETRIES) {
           await new Promise(resolve => setTimeout(resolve, 2000));
@@ -112,7 +167,7 @@ export default function VideoPlayer({
         } else {
           setIsError(true);
           setIsLoading(false);
-          setError(videoError?.message || 'Error playing video');
+          setError(`Error playing video: ${errorMessage}`);
           setIsPlaying(false);
         }
       }
@@ -127,9 +182,8 @@ export default function VideoPlayer({
         video.removeEventListener(event, handler);
       });
     };
-  }, [retryCount, url]); // Added url to dependencies
+  }, [retryCount, url]);
 
-  // Rest of the component code remains the same...
   useEffect(() => {
     const handleFullscreenChange = () => {
       setIsFullscreen(!!document.fullscreenElement);
@@ -305,8 +359,18 @@ export default function VideoPlayer({
           poster={thumbnail}
           playsInline
           preload="metadata"
+          crossOrigin="anonymous"
+          onError={(e) => {
+            console.error('Video Error Event:', e, videoRef.current?.error);
+          }}
         >
-          <source src={url} type="video/mp4" />
+          <source 
+            src={url} 
+            type="video/mp4"
+            onError={(e) => {
+              console.error('Source Error Event:', e);
+            }}
+          />
           Your browser does not support the video tag.
         </video>
 
@@ -379,7 +443,7 @@ export default function VideoPlayer({
 
                 <div className="relative group">
                   <button 
-                    onClick={toggleMute}
+onClick={toggleMute}
                     onMouseEnter={() => setShowVolumeSlider(true)}
                     className="text-white hover:text-yellow-400"
                   >
