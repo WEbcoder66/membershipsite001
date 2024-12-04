@@ -2,6 +2,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+import { getBunnyVideoUrl } from '@/lib/videoUtils';
 import { 
   Play, 
   Pause, 
@@ -53,6 +54,8 @@ export default function VideoPlayer({
   const [hasAttemptedPlay, setHasAttemptedPlay] = useState(false);
   const [isError, setIsError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
+  const [videoUrl, setVideoUrl] = useState<string>(url);
+  const [thumbnailUrl, setThumbnailUrl] = useState<string>(thumbnail || '');
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -67,6 +70,26 @@ export default function VideoPlayer({
     const requiredLevel = tierLevels[requiredTier];
     return userTierLevel >= requiredLevel;
   }, [user, requiredTier]);
+
+  // Generate secured URLs when videoId changes
+  useEffect(() => {
+    async function generateUrls() {
+      if (videoId) {
+        try {
+          const [newVideoUrl, newThumbnailUrl] = await Promise.all([
+            getBunnyVideoUrl(videoId, 'video'),
+            getBunnyVideoUrl(videoId, 'thumbnail')
+          ]);
+          setVideoUrl(newVideoUrl);
+          setThumbnailUrl(newThumbnailUrl);
+        } catch (error) {
+          console.error('Failed to generate video URLs:', error);
+          setError('Failed to generate video URLs');
+        }
+      }
+    }
+    generateUrls();
+  }, [videoId]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -97,6 +120,15 @@ export default function VideoPlayer({
 
         if (retryCount < MAX_RETRIES) {
           setRetryCount(prev => prev + 1);
+          // Regenerate URLs on retry
+          if (videoId) {
+            const [newVideoUrl, newThumbnailUrl] = await Promise.all([
+              getBunnyVideoUrl(videoId, 'video'),
+              getBunnyVideoUrl(videoId, 'thumbnail')
+            ]);
+            setVideoUrl(newVideoUrl);
+            setThumbnailUrl(newThumbnailUrl);
+          }
           await new Promise(resolve => setTimeout(resolve, 2000));
           video.load();
         } else {
@@ -117,7 +149,7 @@ export default function VideoPlayer({
         video.removeEventListener(event, handler);
       });
     };
-  }, [retryCount]);
+  }, [retryCount, videoId]);
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -234,7 +266,7 @@ export default function VideoPlayer({
     return (
       <div className="relative aspect-video bg-black">
         <img
-          src={thumbnail}
+          src={thumbnailUrl}
           alt={title || "Video thumbnail"}
           className="w-full h-full object-cover opacity-30"
         />
@@ -278,11 +310,15 @@ export default function VideoPlayer({
           ref={videoRef}
           className="w-full h-full"
           onClick={togglePlay}
-          poster={thumbnail}
+          poster={thumbnailUrl}
           playsInline
           preload="metadata"
+          crossOrigin="anonymous"
         >
-          <source src={url} type="video/mp4" />
+          <source 
+            src={videoUrl}
+            type="video/mp4"
+          />
           Your browser does not support the video tag.
         </video>
 
@@ -297,10 +333,18 @@ export default function VideoPlayer({
             <div className="text-center text-white">
               <p className="mb-4">Failed to load video</p>
               <button
-                onClick={() => {
+                onClick={async () => {
                   setIsError(false);
                   setRetryCount(0);
                   if (videoRef.current) {
+                    if (videoId) {
+                      const [newVideoUrl, newThumbnailUrl] = await Promise.all([
+                        getBunnyVideoUrl(videoId, 'video'),
+                        getBunnyVideoUrl(videoId, 'thumbnail')
+                      ]);
+                      setVideoUrl(newVideoUrl);
+                      setThumbnailUrl(newThumbnailUrl);
+                    }
                     videoRef.current.load();
                   }
                 }}
@@ -321,10 +365,8 @@ export default function VideoPlayer({
           </button>
         )}
 
-        {/* Video Controls */}
         {showControls && (
           <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 via-black/40 to-transparent p-4">
-            {/* Progress Bar */}
             <div 
               className="w-full h-1 bg-gray-600 rounded cursor-pointer mb-4"
               onClick={handleProgressClick}
@@ -335,7 +377,6 @@ export default function VideoPlayer({
               />
             </div>
 
-            {/* Control Buttons */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <button onClick={togglePlay} className="text-white hover:text-yellow-400">
