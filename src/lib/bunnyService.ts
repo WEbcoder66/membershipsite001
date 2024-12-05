@@ -34,7 +34,6 @@ export class BunnyVideoService {
   private async makeRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = `${this.API_BASE_URL}/${this.config.libraryId}${endpoint}`;
     
-    // Add debug logging
     console.log('Making request to:', url, {
       method: options.method,
       headers: options.headers
@@ -215,6 +214,11 @@ export class BunnyVideoService {
       console.error('Set thumbnail error:', error);
       throw error;
     }
+  }
+
+  public getVideoUrl(videoId: string, type: 'video' | 'thumbnail' = 'video'): string {
+    const path = type === 'thumbnail' ? 'thumbnail.jpg' : 'play.mp4';
+    return `${this.config.cdnUrl}/${videoId}/${path}`;
   }
 }
 

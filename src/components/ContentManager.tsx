@@ -3,7 +3,6 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { Content } from '@/lib/types';
 import { getAllContent, addContent, deleteContent } from '@/lib/contentService';
-import { getBunnyVideoUrl } from '@/lib/videoUtils';
 import { 
   Upload,
   Image as ImageIcon,
@@ -142,7 +141,7 @@ export default function ContentManager() {
       await handleFileSelection(file);
     }
   };
-  
+
   // File selection handlers
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -169,7 +168,7 @@ export default function ContentManager() {
     }
   };
 
-  // Main file handling function
+  // Updated handleFileSelection function
   const handleFileSelection = async (selectedFile: File) => {
     setFile(selectedFile);
     setError('');
@@ -221,7 +220,7 @@ export default function ContentManager() {
       setUploadProgress(80);
       setUploadStatus('processing');
 
-      // Use getBunnyVideoUrl utility function for URL construction
+      // Create the content in your database with simplified video content structure
       const contentData = {
         type: 'video',
         title,
@@ -229,8 +228,6 @@ export default function ContentManager() {
         tier: membershipTier,
         mediaContent: {
           video: {
-            url: getBunnyVideoUrl(videoId, 'video'),
-            thumbnail: getBunnyVideoUrl(videoId, 'thumbnail'),
             videoId,
             title
           }
@@ -437,7 +434,8 @@ export default function ContentManager() {
                   type="text"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400 text-gray-900"placeholder="Enter title..."
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400 text-gray-900"
+                  placeholder="Enter title..."
                   required
                 />
               </div>
@@ -571,7 +569,7 @@ export default function ContentManager() {
                         <span>{file.name}</span>
                         <span>{(file.size / (1024 * 1024)).toFixed(2)} MB</span>
                       </div>
-                    </div> 
+                    </div>
                   )}
                 </div>
               )}

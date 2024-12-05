@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { headers } from 'next/headers';
 import dbConnect from '@/lib/mongodb';
 import Content from '@/models/Content';
+import { bunnyVideo } from '@/lib/bunnyService';
 
 // Handle POST requests for creating content
 export async function POST(req: Request) {
@@ -19,22 +20,23 @@ export async function POST(req: Request) {
     const { type, title, description, tier, mediaContent } = await req.json();
     console.log('Content API POST: Received data:', { type, title, description, tier, mediaContent });
 
-    // Construct the content data properly
+    // Get secure URLs using the bunnyVideo service
+    const videoId = mediaContent?.video?.videoId;
+    
+    // Construct the content data with bunnyVideo URLs
     const contentData = {
       type,
       title,
       description,
       tier,
       mediaContent: {
-        video: {
-          url: mediaContent?.video?.url || '',
-          thumbnail: mediaContent?.video?.thumbnail || '',
-          videoId: mediaContent?.video?.videoId || '',
-          title: mediaContent?.video?.title || ''
-        },
-        gallery: {
-          images: mediaContent?.gallery?.images || []
-        }
+        video: videoId ? {
+          url: bunnyVideo.getVideoUrl(videoId, 'video'),
+          thumbnail: bunnyVideo.getVideoUrl(videoId, 'thumbnail'),
+          videoId,
+          title: mediaContent.video.title
+        } : undefined,
+        gallery: mediaContent?.gallery || { images: [] }
       },
       isLocked: true,
       createdAt: new Date(),

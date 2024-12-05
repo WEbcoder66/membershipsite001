@@ -1,8 +1,8 @@
+// src/components/VideoPlayer.tsx
 'use client';
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { getBunnyVideoUrl } from '@/lib/videoUtils';
 import { 
   Play, 
   Pause, 
@@ -71,25 +71,47 @@ export default function VideoPlayer({
     return userTierLevel >= requiredLevel;
   }, [user, requiredTier]);
 
-  // Generate secured URLs when videoId changes
-  useEffect(() => {
-    async function generateUrls() {
-      if (videoId) {
-        try {
-          const [newVideoUrl, newThumbnailUrl] = await Promise.all([
-            getBunnyVideoUrl(videoId, 'video'),
-            getBunnyVideoUrl(videoId, 'thumbnail')
-          ]);
-          setVideoUrl(newVideoUrl);
-          setThumbnailUrl(newThumbnailUrl);
-        } catch (error) {
-          console.error('Failed to generate video URLs:', error);
-          setError('Failed to generate video URLs');
+  const fetchSecureUrls = useCallback(async () => {
+    if (videoId) {
+      try {
+        const [videoRes, thumbnailRes] = await Promise.all([
+          fetch('/api/videos/get-secure-url', {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${user?.email}`
+            },
+            body: JSON.stringify({ videoId, type: 'video' })
+          }),
+          fetch('/api/videos/get-secure-url', {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${user?.email}`
+            },
+            body: JSON.stringify({ videoId, type: 'thumbnail' })
+          })
+        ]);
+
+        if (!videoRes.ok || !thumbnailRes.ok) {
+          throw new Error('Failed to fetch secure URLs');
         }
+
+        const videoData = await videoRes.json();
+        const thumbnailData = await thumbnailRes.json();
+
+        if (videoData.url) setVideoUrl(videoData.url);
+        if (thumbnailData.url) setThumbnailUrl(thumbnailData.url);
+      } catch (error) {
+        console.error('Error fetching secure URLs:', error);
+        setError('Failed to load video URLs');
       }
     }
-    generateUrls();
-  }, [videoId]);
+  }, [videoId, user?.email]);
+
+  useEffect(() => {
+    fetchSecureUrls();
+  }, [fetchSecureUrls]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -120,15 +142,7 @@ export default function VideoPlayer({
 
         if (retryCount < MAX_RETRIES) {
           setRetryCount(prev => prev + 1);
-          // Regenerate URLs on retry
-          if (videoId) {
-            const [newVideoUrl, newThumbnailUrl] = await Promise.all([
-              getBunnyVideoUrl(videoId, 'video'),
-              getBunnyVideoUrl(videoId, 'thumbnail')
-            ]);
-            setVideoUrl(newVideoUrl);
-            setThumbnailUrl(newThumbnailUrl);
-          }
+          await fetchSecureUrls();
           await new Promise(resolve => setTimeout(resolve, 2000));
           video.load();
         } else {
@@ -149,7 +163,7 @@ export default function VideoPlayer({
         video.removeEventListener(event, handler);
       });
     };
-  }, [retryCount, videoId]);
+  }, [retryCount, fetchSecureUrls]);
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -336,15 +350,8 @@ export default function VideoPlayer({
                 onClick={async () => {
                   setIsError(false);
                   setRetryCount(0);
+                  await fetchSecureUrls();
                   if (videoRef.current) {
-                    if (videoId) {
-                      const [newVideoUrl, newThumbnailUrl] = await Promise.all([
-                        getBunnyVideoUrl(videoId, 'video'),
-                        getBunnyVideoUrl(videoId, 'thumbnail')
-                      ]);
-                      setVideoUrl(newVideoUrl);
-                      setThumbnailUrl(newThumbnailUrl);
-                    }
                     videoRef.current.load();
                   }
                 }}
