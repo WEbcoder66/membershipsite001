@@ -228,3 +228,10 @@ export const bunnyVideo = new BunnyVideoService({
   libraryId: process.env.BUNNY_LIBRARY_ID || '',
   cdnUrl: process.env.BUNNY_CDN_URL || ''
 });
+
+// Add logging to help debug initialization
+console.log('Initializing BunnyVideoService with:', {
+  hasApiKey: !!process.env.BUNNY_API_KEY,
+  hasLibraryId: !!process.env.BUNNY_LIBRARY_ID,
+  hasCdnUrl: !!process.env.BUNNY_CDN_URL
+});
