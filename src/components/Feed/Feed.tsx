@@ -32,6 +32,10 @@ export default function Feed({ setActiveTab }: FeedProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const getVideoId = (content: Content): string => {
+    return content.mediaContent?.video?.videoId || content.id;
+  };
+
   useEffect(() => {
     const fetchContent = async () => {
       try {
@@ -101,14 +105,6 @@ export default function Feed({ setActiveTab }: FeedProps) {
         }
         return newSet;
       });
-
-      // Here you would typically make an API call to update the like status
-      // await fetch(`/api/content/${postId}/like`, {
-      //   method: 'POST',
-      //   headers: {
-      //     'Authorization': `Bearer ${user.email}`
-      //   }
-      // });
     } catch (error) {
       console.error('Error updating like status:', error);
     }
@@ -145,6 +141,7 @@ export default function Feed({ setActiveTab }: FeedProps) {
       <div className="space-y-6">
         {content.map((post) => {
           const dateInfo = formatDate(post.createdAt);
+          const postContent = post.content || post.description || '';
 
           return (
             <article key={post.id} className="bg-white rounded-lg shadow-lg overflow-hidden">
@@ -174,13 +171,13 @@ export default function Feed({ setActiveTab }: FeedProps) {
               {/* Post Content */}
               {post.type === 'video' && post.mediaContent?.video ? (
                 <VideoPlayer
+                  videoId={getVideoId(post)}
                   url={post.mediaContent.video.url}
                   thumbnail={post.mediaContent.video.thumbnail}
                   title={post.title}
                   requiredTier={post.tier as MembershipTier}
-                  duration={post.mediaContent.video.duration}
+                  videoDuration={post.mediaContent.video.duration}
                   setActiveTab={setActiveTab}
-                  videoId={post.mediaContent.video.videoId}
                 />
               ) : (
                 <div className="p-4">
@@ -200,9 +197,9 @@ export default function Feed({ setActiveTab }: FeedProps) {
                   ) : (
                     <>
                       <p className={`text-gray-800 ${!expandedPosts.has(post.id) && 'line-clamp-3'}`}>
-                        {post.content || post.description}
+                        {postContent}
                       </p>
-                      {(post.content || post.description)?.length > 150 && (
+                      {postContent.length > 150 && (
                         <button
                           onClick={() => togglePostExpansion(post.id)}
                           className="text-yellow-600 hover:text-yellow-700 text-sm mt-2 flex items-center gap-1"
@@ -229,14 +226,14 @@ export default function Feed({ setActiveTab }: FeedProps) {
                     }`}
                   >
                     <ThumbsUp className="w-5 h-5" />
-                    <span>{post.likes + (likedPosts.has(post.id) ? 1 : 0)}</span>
+                    <span>{(post.likes || 0) + (likedPosts.has(post.id) ? 1 : 0)}</span>
                   </button>
                   <button 
                     onClick={() => toggleComments(post.id)}
                     className="flex items-center gap-1 text-gray-600 hover:text-yellow-500"
                   >
                     <MessageCircle className="w-5 h-5" />
-                    <span>{post.comments}</span>
+                    <span>{post.comments || 0}</span>
                   </button>
                   <button className="flex items-center gap-1 text-gray-600 hover:text-yellow-500">
                     <Share2 className="w-5 h-5" />

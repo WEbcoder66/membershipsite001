@@ -1,4 +1,3 @@
-// src/components/Feed/FeedItem.tsx
 'use client';
 import React, { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
@@ -89,9 +88,11 @@ export default function FeedItem({
       case 'video':
         return post.mediaContent.video && (
           <VideoPlayer
+            videoId={post.mediaContent.video.videoId}
             url={post.mediaContent.video.url}
             thumbnail={post.mediaContent.video.thumbnail}
-            duration={post.mediaContent.video.duration}
+            videoDuration={post.mediaContent.video.duration}
+            title={post.mediaContent.video.title}
             requiredTier={post.tier}
             setActiveTab={setActiveTab}
           />
@@ -149,7 +150,7 @@ export default function FeedItem({
         <p className={`text-gray-700 ${!isExpanded && 'line-clamp-2'}`}>
           {post.content || post.description}
         </p>
-        {(post.content || post.description).length > 150 && (
+        {(post.content || post.description)?.length > 150 && (
           <button
             onClick={() => setIsExpanded(!isExpanded)}
             className="text-yellow-600 hover:text-yellow-700 text-sm mt-2 flex items-center gap-1"
@@ -212,3 +213,4 @@ export default function FeedItem({
     </article>
   );
 }
+

@@ -1,4 +1,3 @@
-// src/components/VideoPlayer.tsx
 'use client';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
@@ -15,184 +14,194 @@ import {
   SkipForward,
   Lock,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  RefreshCw
 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { MembershipTier } from '@/lib/types';
 
 interface VideoPlayerProps {
-  url: string;
+  videoId: string;
+  url?: string;
   thumbnail?: string;
   title?: string;
   requiredTier: MembershipTier;
-  duration?: string;
+  videoDuration?: string;
   setActiveTab: (tab: string) => void;
-  videoId?: string;
+  autoplay?: boolean;
+  startTime?: number;
+  loop?: boolean;
+  muted?: boolean;
+  showControls?: boolean;
+  width?: string | number;
+  height?: string | number;
+  onReady?: () => void;
+  onPlay?: () => void;
+  onPause?: () => void;
+  onEnd?: () => void;
+  onTimeUpdate?: (currentTime: number) => void;
+  onError?: (error: Error) => void;
+}
+
+interface PlayerConfig {
+  aspectRatio: string;
+  autoplay: boolean;
+  loop: boolean;
+  muted: boolean;
+  preload: 'auto' | 'metadata' | 'none';
+  playbackRates: number[];
+  poster?: string;
+  responsive: boolean;
+  controls: boolean;
+}
+
+interface PlayerError {
+  type: string;
+  message: string;
+  details?: any;
 }
 
 export default function VideoPlayer({
+  videoId,
   url,
   thumbnail,
   title,
   requiredTier,
-  duration,
+  videoDuration,
   setActiveTab,
-  videoId
+  autoplay = false,
+  startTime = 0,
+  loop = false,
+  muted = false,
+  showControls = true,
+  width = '100%',
+  height = 'auto',
+  onReady,
+  onPlay,
+  onPause,
+  onEnd,
+  onTimeUpdate,
+  onError
 }: VideoPlayerProps) {
   const router = useRouter();
   const { user } = useAuth();
+  const playerRef = useRef<HTMLIFrameElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [showControls, setShowControls] = useState(true);
-  const [volume, setVolume] = useState(1);
-  const [isMuted, setIsMuted] = useState(false);
+  const [error, setError] = useState<PlayerError | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
-  const [videoDuration, setVideoDuration] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [volume, setVolume] = useState(1);
+  const [isMuted, setIsMuted] = useState(muted);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
   const [hasAttemptedPlay, setHasAttemptedPlay] = useState(false);
-  const [isError, setIsError] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
-  const [videoUrl, setVideoUrl] = useState<string>(url);
-  const [thumbnailUrl, setThumbnailUrl] = useState<string>(thumbnail || '');
 
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const controlsTimeoutRef = useRef<NodeJS.Timeout>();
+  const maxRetries = 3;
+  const retryDelay = 2000;
 
-  const MAX_RETRIES = 3;
+  const playerConfig: PlayerConfig = {
+    aspectRatio: '16:9',
+    autoplay,
+    loop,
+    muted: isMuted,
+    preload: 'auto',
+    playbackRates: [0.5, 1, 1.25, 1.5, 2],
+    poster: thumbnail,
+    responsive: true,
+    controls: showControls
+  };
 
   const hasAccess = useCallback(() => {
-    if (!user) return false;
+    if (!user?.membershipTier) return false;
     const tierLevels = { basic: 1, premium: 2, allAccess: 3 };
     const userTierLevel = tierLevels[user.membershipTier as keyof typeof tierLevels] || 0;
     const requiredLevel = tierLevels[requiredTier];
     return userTierLevel >= requiredLevel;
   }, [user, requiredTier]);
 
-  const fetchSecureUrls = useCallback(async () => {
-    if (videoId) {
-      try {
-        const [videoRes, thumbnailRes] = await Promise.all([
-          fetch('/api/videos/get-secure-url', {
-            method: 'POST',
-            headers: { 
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${user?.email}`
-            },
-            body: JSON.stringify({ videoId, type: 'video' })
-          }),
-          fetch('/api/videos/get-secure-url', {
-            method: 'POST',
-            headers: { 
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${user?.email}`
-            },
-            body: JSON.stringify({ videoId, type: 'thumbnail' })
-          })
-        ]);
-
-        if (!videoRes.ok || !thumbnailRes.ok) {
-          throw new Error('Failed to fetch secure URLs');
-        }
-
-        const videoData = await videoRes.json();
-        const thumbnailData = await thumbnailRes.json();
-
-        if (videoData.url) setVideoUrl(videoData.url);
-        if (thumbnailData.url) setThumbnailUrl(thumbnailData.url);
-      } catch (error) {
-        console.error('Error fetching secure URLs:', error);
-        setError('Failed to load video URLs');
-      }
+  const retryPlayback = useCallback(() => {
+    setError(null);
+    setIsLoading(true);
+    setIsRetrying(false);
+    
+    if (playerRef.current) {
+      const videoSource = url || `https://iframe.mediadelivery.net/play/${process.env.BUNNY_LIBRARY_ID}/${videoId}`;
+      playerRef.current.src = videoSource;
     }
-  }, [videoId, user?.email]);
+  }, [url, videoId]);
 
-  useEffect(() => {
-    fetchSecureUrls();
-  }, [fetchSecureUrls]);
-
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    const handlers = {
-      loadedmetadata: () => {
-        setVideoDuration(video.duration);
-        setIsLoading(false);
-        setError(null);
-      },
-      playing: () => {
-        setIsLoading(false);
-        setIsPlaying(true);
-        setError(null);
-      },
-      pause: () => setIsPlaying(false),
-      waiting: () => setIsLoading(true),
-      timeupdate: () => setCurrentTime(video.currentTime),
-      ended: () => {
-        setIsPlaying(false);
-        setCurrentTime(0);
-        video.currentTime = 0;
-      },
-      error: async (e: Event) => {
-        const videoError = (e.target as HTMLVideoElement).error;
-        console.error('Video Error:', videoError);
-
-        if (retryCount < MAX_RETRIES) {
-          setRetryCount(prev => prev + 1);
-          await fetchSecureUrls();
-          await new Promise(resolve => setTimeout(resolve, 2000));
-          video.load();
-        } else {
-          setIsError(true);
-          setIsLoading(false);
-          setError(videoError?.message || 'Failed to play video');
-          setIsPlaying(false);
-        }
-      }
+  const handleError = useCallback((errorData: any) => {
+    const error: PlayerError = {
+      type: errorData.type || 'unknown',
+      message: errorData.message || 'An error occurred while playing the video',
+      details: errorData
     };
 
-    Object.entries(handlers).forEach(([event, handler]) => {
-      video.addEventListener(event, handler);
-    });
+    console.error('Video player error:', error);
+    setError(error);
+    onError?.(new Error(error.message));
+
+    if (retryCount < maxRetries) {
+      setIsRetrying(true);
+      setTimeout(() => {
+        setRetryCount(prev => prev + 1);
+        retryPlayback();
+      }, retryDelay);
+    }
+  }, [retryCount, maxRetries, retryDelay, retryPlayback, onError]);
+
+  useEffect(() => {
+    if (!videoId || !hasAccess()) return;
+
+    const script = document.createElement('script');
+    script.src = 'https://iframe.mediadelivery.net/embed/js';
+    script.async = true;
+    document.body.appendChild(script);
 
     return () => {
-      Object.entries(handlers).forEach(([event, handler]) => {
-        video.removeEventListener(event, handler);
-      });
+      document.body.removeChild(script);
     };
-  }, [retryCount, fetchSecureUrls]);
+  }, [videoId, hasAccess]);
 
   useEffect(() => {
-    const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
+    const handleMessage = (event: MessageEvent) => {
+      if (event.origin !== 'https://iframe.mediadelivery.net') return;
+
+      const { type, data } = event.data;
+      switch (type) {
+        case 'ready':
+          setIsLoading(false);
+          onReady?.();
+          break;
+        case 'play':
+          setIsPlaying(true);
+          onPlay?.();
+          break;
+        case 'pause':
+          setIsPlaying(false);
+          onPause?.();
+          break;
+        case 'ended':
+          setIsPlaying(false);
+          onEnd?.();
+          break;
+        case 'timeupdate':
+          setCurrentTime(data.currentTime);
+          onTimeUpdate?.(data.currentTime);
+          break;
+        case 'error':
+          handleError(data);
+          break;
+      }
     };
 
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
-  }, []);
-
-  useEffect(() => {
-    if (isPlaying) {
-      const hideControls = () => setShowControls(false);
-      controlsTimeoutRef.current = setTimeout(hideControls, 2000);
-      return () => clearTimeout(controlsTimeoutRef.current);
-    }
-  }, [isPlaying, showControls]);
-
-  const handleMouseMove = () => {
-    setShowControls(true);
-    if (controlsTimeoutRef.current) {
-      clearTimeout(controlsTimeoutRef.current);
-    }
-    if (isPlaying) {
-      controlsTimeoutRef.current = setTimeout(() => {
-        setShowControls(false);
-      }, 2000);
-    }
-  };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [onReady, onPlay, onPause, onEnd, onTimeUpdate, handleError]);
 
   const handleUpgradeClick = () => {
     if (!user) {
@@ -202,57 +211,33 @@ export default function VideoPlayer({
     }
   };
 
-  const togglePlay = async () => {
+  const postMessage = (action: string, data?: any) => {
+    if (playerRef.current?.contentWindow) {
+      playerRef.current.contentWindow.postMessage({ action, data }, '*');
+    }
+  };
+
+  const togglePlay = () => {
     if (!hasAccess()) {
       setHasAttemptedPlay(true);
       return;
     }
-
-    if (!videoRef.current) return;
-
-    try {
-      setError(null);
-      if (isPlaying) {
-        await videoRef.current.pause();
-      } else {
-        await videoRef.current.play();
-      }
-    } catch (error) {
-      console.error('Error playing video:', error);
-      setError('Failed to play video. Please try again.');
-    }
+    postMessage(isPlaying ? 'pause' : 'play');
   };
 
-  const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!videoRef.current || !hasAccess()) return;
-    
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const percentage = x / rect.width;
-    const newTime = percentage * videoDuration;
-    
-    videoRef.current.currentTime = newTime;
-    setCurrentTime(newTime);
+  const toggleMute = () => {
+    setIsMuted(!isMuted);
+    postMessage('setVolume', { volume: isMuted ? volume : 0 });
   };
 
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newVolume = parseFloat(e.target.value);
     setVolume(newVolume);
-    if (videoRef.current) {
-      videoRef.current.volume = newVolume;
-      setIsMuted(newVolume === 0);
-    }
+    postMessage('setVolume', { volume: newVolume });
   };
 
-  const toggleMute = () => {
-    if (!videoRef.current) return;
-    setIsMuted(!isMuted);
-    videoRef.current.muted = !isMuted;
-  };
-
-  const skipTime = (seconds: number) => {
-    if (!videoRef.current || !hasAccess()) return;
-    videoRef.current.currentTime += seconds;
+  const handleSeek = (time: number) => {
+    postMessage('seek', { time });
   };
 
   const toggleFullscreen = async () => {
@@ -265,22 +250,24 @@ export default function VideoPlayer({
         await document.exitFullscreen();
       }
     } catch (error) {
-      console.error('Error handling fullscreen:', error);
-      setError('Failed to toggle fullscreen mode');
+      console.error('Fullscreen error:', error);
     }
   };
 
-  const formatTime = (time: number) => {
-    const minutes = Math.floor(time / 60);
-    const seconds = Math.floor(time % 60);
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-  };
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
 
   if (!hasAccess() && hasAttemptedPlay) {
     return (
       <div className="relative aspect-video bg-black">
         <img
-          src={thumbnailUrl}
+          src={thumbnail}
           alt={title || "Video thumbnail"}
           className="w-full h-full object-cover opacity-30"
         />
@@ -301,120 +288,109 @@ export default function VideoPlayer({
     );
   }
 
+  const renderError = () => {
+    if (!error) return null;
+
+    return (
+      <Alert variant="destructive" className="mb-4">
+        <AlertCircle className="h-4 w-4" />
+        <AlertDescription>
+          {error.message}
+          {retryCount < maxRetries && (
+            <button
+              onClick={retryPlayback}
+              className="ml-4 flex items-center text-sm text-red-600 hover:text-red-700"
+            >
+              <RefreshCw className="w-4 h-4 mr-1" />
+              Retry
+            </button>
+          )}
+        </AlertDescription>
+      </Alert>
+    );
+  };
+
+  const videoSource = url || `https://iframe.mediadelivery.net/play/${process.env.BUNNY_LIBRARY_ID}/${videoId}`;
+
   return (
     <div className="space-y-2">
-      {error && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
+      {renderError()}
       
-      <div 
-        ref={containerRef}
-        className="relative aspect-video bg-black group"
-        onMouseMove={handleMouseMove}
-        onMouseLeave={() => {
-          if (isPlaying) {
-            setShowControls(false);
-          }
-        }}
-      >
-        <video
-          ref={videoRef}
-          className="w-full h-full"
-          onClick={togglePlay}
-          poster={thumbnailUrl}
-          playsInline
-          preload="metadata"
-          crossOrigin="anonymous"
-        >
-          <source 
-            src={videoUrl}
-            type="video/mp4"
-          />
-          Your browser does not support the video tag.
-        </video>
-
-        {isLoading && !isError && (
+      <div ref={containerRef} className="relative aspect-video bg-black">
+        {isLoading && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/30">
             <Loader2 className="w-12 h-12 text-white animate-spin" />
           </div>
         )}
 
-        {isError && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/75">
-            <div className="text-center text-white">
-              <p className="mb-4">Failed to load video</p>
-              <button
-                onClick={async () => {
-                  setIsError(false);
-                  setRetryCount(0);
-                  await fetchSecureUrls();
-                  if (videoRef.current) {
-                    videoRef.current.load();
-                  }
-                }}
-                className="bg-yellow-400 text-black px-4 py-2 rounded-lg hover:bg-yellow-500"
-              >
-                Try Again
-              </button>
-            </div>
-          </div>
-        )}
-
-        {!isPlaying && !isLoading && !isError && (
-          <button
-            onClick={togglePlay}
-            className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 p-4 rounded-full bg-black/50 hover:bg-black/70 transition-colors"
-          >
-            <Play className="w-12 h-12 text-white" />
-          </button>
-        )}
+        <iframe
+          ref={playerRef}
+          src={`${videoSource}?autoplay=${autoplay}&loop=${loop}&muted=${muted}&controls=${showControls}&poster=${encodeURIComponent(thumbnail || '')}`}
+          className="w-full h-full border-0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+          title={title || 'Video player'}
+        />
 
         {showControls && (
-          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 via-black/40 to-transparent p-4">
-            <div 
+          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 via-black/40 to-transparent p-4">
+            <div
               className="w-full h-1 bg-gray-600 rounded cursor-pointer mb-4"
-              onClick={handleProgressClick}
+              onClick={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const percentage = x / rect.width;
+                handleSeek(percentage * duration);
+              }}
             >
-              <div 
+              <div
                 className="h-full bg-yellow-400 rounded"
-                style={{ width: `${(currentTime / videoDuration) * 100}%` }}
+                style={{ width: `${(currentTime / duration) * 100}%` }}
               />
             </div>
 
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
-                <button onClick={togglePlay} className="text-white hover:text-yellow-400">
-                  {isPlaying ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6" />}
+                <button
+                  onClick={togglePlay}
+                  className="text-white hover:text-yellow-400"
+                >
+                  {isPlaying ? (
+                    <Pause className="w-6 h-6" />
+                  ) : (
+                    <Play className="w-6 h-6" />
+                  )}
                 </button>
 
-                <button 
-                  onClick={() => skipTime(-10)}
+                <button
+                  onClick={() => handleSeek(currentTime - 10)}
                   className="text-white hover:text-yellow-400"
                 >
                   <SkipBack className="w-6 h-6" />
                 </button>
 
-                <button 
-                  onClick={() => skipTime(10)}
+                <button
+                  onClick={() => handleSeek(currentTime + 10)}
                   className="text-white hover:text-yellow-400"
                 >
                   <SkipForward className="w-6 h-6" />
                 </button>
 
                 <div className="relative">
-                  <button 
+                  <button
                     onClick={toggleMute}
                     onMouseEnter={() => setShowVolumeSlider(true)}
                     className="text-white hover:text-yellow-400"
                   >
-                    {isMuted ? <VolumeX className="w-6 h-6" /> : <Volume2 className="w-6 h-6" />}
+                    {isMuted ? (
+                      <VolumeX className="w-6 h-6" />
+                    ) : (
+                      <Volume2 className="w-6 h-6" />
+                    )}
                   </button>
 
                   {showVolumeSlider && (
-                    <div 
+                    <div
                       className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 bg-black/80 p-2 rounded"
                       onMouseLeave={() => setShowVolumeSlider(false)}
                     >
@@ -423,7 +399,7 @@ export default function VideoPlayer({
                         min="0"
                         max="1"
                         step="0.1"
-                        value={volume}
+                        value={isMuted ? 0 : volume}
                         onChange={handleVolumeChange}
                         className="w-24 accent-yellow-400"
                       />
@@ -431,13 +407,17 @@ export default function VideoPlayer({
                   )}
                 </div>
 
-                <span className="text-white text-sm">
-                  {formatTime(currentTime)} / {formatTime(videoDuration)}
-                </span>
+                <div className="text-white text-sm">
+                  {`${Math.floor(currentTime / 60)}:${String(Math.floor(currentTime % 60)).padStart(2, '0')} / ${Math.floor(duration / 60)}:${String(Math.floor(duration % 60)).padStart(2, '0')}`}
+                </div>
               </div>
 
               <div className="flex items-center gap-4">
-                <button 
+                <button className="text-white hover:text-yellow-400">
+                  <Settings className="w-6 h-6" />
+                </button>
+
+                <button
                   onClick={toggleFullscreen}
                   className="text-white hover:text-yellow-400"
                 >
@@ -452,6 +432,23 @@ export default function VideoPlayer({
           </div>
         )}
       </div>
+
+     {/* Title and Duration */}
+      {title && (
+        <div className="mt-4 space-y-1">
+          <h2 className="text-lg font-bold text-gray-900">{title}</h2>
+          {videoDuration && (
+            <div className="flex items-center gap-2 text-sm text-gray-600">
+              <span>Duration: {videoDuration}</span>
+              {requiredTier !== 'basic' && (
+                <span className="px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800 text-xs">
+                  {requiredTier}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
