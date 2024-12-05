@@ -43,6 +43,12 @@ interface VideoPlayerProps {
   onError?: (error: Error) => void;
 }
 
+interface PlayerError {
+  type: string;
+  message: string;
+  details?: any;
+}
+
 interface PlayerConfig {
   aspectRatio: string;
   autoplay: boolean;
@@ -53,12 +59,6 @@ interface PlayerConfig {
   poster?: string;
   responsive: boolean;
   controls: boolean;
-}
-
-interface PlayerError {
-  type: string;
-  message: string;
-  details?: any;
 }
 
 export default function VideoPlayer({
@@ -103,6 +103,16 @@ export default function VideoPlayer({
   const maxRetries = 3;
   const retryDelay = 2000;
 
+  // Generate video source URL using public environment variable
+  const videoSource = url || `https://iframe.mediadelivery.net/embed/${process.env.NEXT_PUBLIC_BUNNY_LIBRARY_ID}/${videoId}`;
+
+  // Debug logging
+  useEffect(() => {
+    console.log('Video source:', videoSource);
+    console.log('Video ID:', videoId);
+    console.log('Library ID:', process.env.NEXT_PUBLIC_BUNNY_LIBRARY_ID);
+  }, [videoId, videoSource]);
+
   const playerConfig: PlayerConfig = {
     aspectRatio: '16:9',
     autoplay,
@@ -123,16 +133,41 @@ export default function VideoPlayer({
     return userTierLevel >= requiredLevel;
   }, [user, requiredTier]);
 
+  const handleVideoOperation = async (action: string, data?: any) => {
+    try {
+      const response = await fetch('/api/video-ops', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${user?.email}`
+        },
+        body: JSON.stringify({
+          action,
+          videoId,
+          ...data
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to perform video operation: ${action}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error(`Video operation error (${action}):`, error);
+      throw error;
+    }
+  };
+
   const retryPlayback = useCallback(() => {
     setError(null);
     setIsLoading(true);
     setIsRetrying(false);
     
     if (playerRef.current) {
-      const videoSource = url || `https://iframe.mediadelivery.net/play/${process.env.BUNNY_LIBRARY_ID}/${videoId}`;
       playerRef.current.src = videoSource;
     }
-  }, [url, videoId]);
+  }, [videoSource]);
 
   const handleError = useCallback((errorData: any) => {
     const error: PlayerError = {
@@ -160,10 +195,25 @@ export default function VideoPlayer({
     const script = document.createElement('script');
     script.src = 'https://iframe.mediadelivery.net/embed/js';
     script.async = true;
+    script.onload = () => {
+      console.log('Bunny player script loaded');
+      setIsLoading(false);
+    };
+    script.onerror = (error) => {
+      console.error('Error loading Bunny player script:', error);
+      setError({
+        type: 'script_load_error',
+        message: 'Failed to load video player',
+        details: error
+      });
+    };
     document.body.appendChild(script);
 
     return () => {
-      document.body.removeChild(script);
+      const existingScript = document.querySelector('script[src="https://iframe.mediadelivery.net/embed/js"]');
+      if (existingScript) {
+        document.body.removeChild(existingScript);
+      }
     };
   }, [videoId, hasAccess]);
 
@@ -175,6 +225,9 @@ export default function VideoPlayer({
       switch (type) {
         case 'ready':
           setIsLoading(false);
+          if (data.duration) {
+            setDuration(data.duration);
+          }
           onReady?.();
           break;
         case 'play':
@@ -288,33 +341,25 @@ export default function VideoPlayer({
     );
   }
 
-  const renderError = () => {
-    if (!error) return null;
-
-    return (
-      <Alert variant="destructive" className="mb-4">
-        <AlertCircle className="h-4 w-4" />
-        <AlertDescription>
-          {error.message}
-          {retryCount < maxRetries && (
-            <button
-              onClick={retryPlayback}
-              className="ml-4 flex items-center text-sm text-red-600 hover:text-red-700"
-            >
-              <RefreshCw className="w-4 h-4 mr-1" />
-              Retry
-            </button>
-          )}
-        </AlertDescription>
-      </Alert>
-    );
-  };
-
-  const videoSource = url || `https://iframe.mediadelivery.net/play/${process.env.BUNNY_LIBRARY_ID}/${videoId}`;
-
   return (
     <div className="space-y-2">
-      {renderError()}
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            {error.message}
+            {retryCount < maxRetries && (
+              <button
+                onClick={retryPlayback}
+                className="ml-4 flex items-center text-sm text-red-600 hover:text-red-700"
+              >
+                <RefreshCw className="w-4 h-4 mr-1" />
+                Retry
+              </button>
+            )}
+          </AlertDescription>
+        </Alert>
+      )}
       
       <div ref={containerRef} className="relative aspect-video bg-black">
         {isLoading && (
@@ -325,7 +370,7 @@ export default function VideoPlayer({
 
         <iframe
           ref={playerRef}
-          src={`${videoSource}?autoplay=${autoplay}&loop=${loop}&muted=${muted}&controls=${showControls}&poster=${encodeURIComponent(thumbnail || '')}`}
+          src={videoSource}
           className="w-full h-full border-0"
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
           allowFullScreen
@@ -397,8 +442,7 @@ export default function VideoPlayer({
                       <input
                         type="range"
                         min="0"
-                        max="1"
-                        step="0.1"
+                        max="1"step="0.1"
                         value={isMuted ? 0 : volume}
                         onChange={handleVolumeChange}
                         className="w-24 accent-yellow-400"
@@ -433,7 +477,7 @@ export default function VideoPlayer({
         )}
       </div>
 
-     {/* Title and Duration */}
+      {/* Title and Duration */}
       {title && (
         <div className="mt-4 space-y-1">
           <h2 className="text-lg font-bold text-gray-900">{title}</h2>
