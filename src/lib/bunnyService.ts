@@ -1,3 +1,5 @@
+// src/lib/bunnyService.ts
+
 interface BunnyConfig {
   apiKey: string;
   libraryId: string;
@@ -29,6 +31,7 @@ export class BunnyVideoService {
   private readonly config: BunnyConfig;
 
   constructor() {
+    // Initialize configuration from environment variables
     this.config = {
       apiKey: process.env.BUNNY_API_KEY || '',
       libraryId: process.env.BUNNY_LIBRARY_ID || '',
@@ -36,6 +39,7 @@ export class BunnyVideoService {
       securityKey: process.env.BUNNY_SECURITY_KEY || ''
     };
 
+    // Validate required configuration
     if (!this.config.apiKey || !this.config.libraryId || !this.config.cdnUrl || !this.config.securityKey) {
       throw new Error('Missing required Bunny.net configuration');
     }
@@ -62,12 +66,13 @@ export class BunnyVideoService {
       });
       throw new Error(`Bunny.net API error (${response.status}): ${error}`);
     }
+
     return response.json();
   }
 
   private async generateToken(videoId: string): Promise<{ token: string; expires: number }> {
     const timestamp = Math.floor(Date.now() / 1000);
-    const expires = timestamp + 3600; // 1 hour
+    const expires = timestamp + 3600; // 1 hour expiration
     const hashableBase = `${this.config.securityKey}${videoId}${expires}`;
     
     const encoder = new TextEncoder();
@@ -88,7 +93,6 @@ export class BunnyVideoService {
     return { token, expires };
   }
 
-  // Add the getVideoUrl method
   async getVideoUrl(videoId: string, type: 'video' | 'thumbnail' = 'video'): Promise<string> {
     const { token, expires } = await this.generateToken(videoId);
     const path = type === 'thumbnail' ? 'thumbnail.jpg' : 'play.mp4';

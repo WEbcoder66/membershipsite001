@@ -49,18 +49,6 @@ interface PlayerError {
   details?: any;
 }
 
-interface PlayerConfig {
-  aspectRatio: string;
-  autoplay: boolean;
-  loop: boolean;
-  muted: boolean;
-  preload: 'auto' | 'metadata' | 'none';
-  playbackRates: number[];
-  poster?: string;
-  responsive: boolean;
-  controls: boolean;
-}
-
 export default function VideoPlayer({
   videoId,
   url,
@@ -113,18 +101,6 @@ export default function VideoPlayer({
     console.log('Library ID:', process.env.NEXT_PUBLIC_BUNNY_LIBRARY_ID);
   }, [videoId, videoSource]);
 
-  const playerConfig: PlayerConfig = {
-    aspectRatio: '16:9',
-    autoplay,
-    loop,
-    muted: isMuted,
-    preload: 'auto',
-    playbackRates: [0.5, 1, 1.25, 1.5, 2],
-    poster: thumbnail,
-    responsive: true,
-    controls: showControls
-  };
-
   const hasAccess = useCallback(() => {
     if (!user?.membershipTier) return false;
     const tierLevels = { basic: 1, premium: 2, allAccess: 3 };
@@ -132,32 +108,6 @@ export default function VideoPlayer({
     const requiredLevel = tierLevels[requiredTier];
     return userTierLevel >= requiredLevel;
   }, [user, requiredTier]);
-
-  const handleVideoOperation = async (action: string, data?: any) => {
-    try {
-      const response = await fetch('/api/video-ops', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${user?.email}`
-        },
-        body: JSON.stringify({
-          action,
-          videoId,
-          ...data
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to perform video operation: ${action}`);
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.error(`Video operation error (${action}):`, error);
-      throw error;
-    }
-  };
 
   const retryPlayback = useCallback(() => {
     setError(null);
@@ -442,7 +392,8 @@ export default function VideoPlayer({
                       <input
                         type="range"
                         min="0"
-                        max="1"step="0.1"
+                        max="1"
+                        step="0.1"
                         value={isMuted ? 0 : volume}
                         onChange={handleVolumeChange}
                         className="w-24 accent-yellow-400"
@@ -477,7 +428,7 @@ export default function VideoPlayer({
         )}
       </div>
 
-      {/* Title and Duration */}
+     {/* Title and Duration */}
       {title && (
         <div className="mt-4 space-y-1">
           <h2 className="text-lg font-bold text-gray-900">{title}</h2>
@@ -496,3 +447,4 @@ export default function VideoPlayer({
     </div>
   );
 }
+

@@ -1,3 +1,4 @@
+// src/app/api/content/route.ts
 import { NextResponse } from 'next/server';
 import { headers } from 'next/headers';
 import dbConnect from '@/lib/mongodb';
@@ -18,11 +19,18 @@ export async function GET(req: Request) {
     const limit = parseInt(url.searchParams.get('limit') || '10');
     const tier = url.searchParams.get('tier');
     const type = url.searchParams.get('type');
+    const searchQuery = url.searchParams.get('search');
     
     // Build query based on parameters
     const query: any = {};
     if (tier) query.tier = tier;
     if (type) query.type = type;
+    if (searchQuery) {
+      query.$or = [
+        { title: { $regex: searchQuery, $options: 'i' } },
+        { description: { $regex: searchQuery, $options: 'i' } }
+      ];
+    }
 
     // Execute query with pagination
     const skip = (page - 1) * limit;
@@ -35,9 +43,36 @@ export async function GET(req: Request) {
       Content.countDocuments(query)
     ]);
 
+    // Generate secure URLs for content with videos
+    const contentWithUrls = await Promise.all(content.map(async (item) => {
+      if (item.mediaContent?.video?.videoId) {
+        try {
+          // Generate secure URLs for video and thumbnail
+          const videoUrl = await bunnyVideo.getVideoUrl(item.mediaContent.video.videoId, 'video');
+          const thumbnailUrl = await bunnyVideo.getVideoUrl(item.mediaContent.video.videoId, 'thumbnail');
+          
+          return {
+            ...item,
+            mediaContent: {
+              ...item.mediaContent,
+              video: {
+                ...item.mediaContent.video,
+                url: videoUrl,
+                thumbnail: thumbnailUrl
+              }
+            }
+          };
+        } catch (error) {
+          console.error(`Error generating URLs for video ${item.mediaContent.video.videoId}:`, error);
+          return item;
+        }
+      }
+      return item;
+    }));
+
     return NextResponse.json({
       success: true,
-      data: content,
+      data: contentWithUrls,
       pagination: {
         page,
         limit,
@@ -72,62 +107,52 @@ export async function POST(req: Request) {
 
     const { type, title, description, tier, mediaContent } = await req.json();
     
-    // Get secure URLs using the bunnyVideo service
+    // Check for required fields
+    if (!type || !title || !description || !tier) {
+      return NextResponse.json(
+        { error: 'Missing required fields' },
+        { status: 400 }
+      );
+    }
+
+    // Handle video content specially
     const videoId = mediaContent?.video?.videoId;
-    let videoUrl;
+    let processedMediaContent = mediaContent;
     
     if (videoId) {
       try {
-        // Await the video URL here
-        videoUrl = await bunnyVideo.getVideoUrl(videoId, 'video');
+        const videoUrl = await bunnyVideo.getVideoUrl(videoId, 'video');
         const thumbnailUrl = await bunnyVideo.getVideoUrl(videoId, 'thumbnail');
         
-        // Construct the content data with resolved URLs
-        const contentData = {
-          type,
-          title,
-          description,
-          tier,
-          mediaContent: {
-            video: {
-              url: videoUrl, // Now this is a string, not a Promise
-              thumbnail: thumbnailUrl,
-              videoId,
-              title: mediaContent.video.title
-            }
-          },
-          isLocked: true,
-          createdAt: new Date(),
-          updatedAt: new Date()
+        processedMediaContent = {
+          video: {
+            ...mediaContent.video,
+            url: videoUrl,
+            thumbnail: thumbnailUrl
+          }
         };
-
-        const content = await Content.create(contentData);
-        return NextResponse.json({ 
-          success: true, 
-          data: content 
-        });
       } catch (error) {
-        console.error('Error generating video URLs:', error);
+        console.error('Error processing video URLs:', error);
         throw new Error('Failed to generate secure video URLs');
       }
-    } else {
-      // Handle non-video content
-      const content = await Content.create({
-        type,
-        title,
-        description,
-        tier,
-        mediaContent,
-        isLocked: true,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      });
-
-      return NextResponse.json({ 
-        success: true, 
-        data: content 
-      });
     }
+
+    // Create content
+    const content = await Content.create({
+      type,
+      title,
+      description,
+      tier,
+      mediaContent: processedMediaContent,
+      isLocked: true,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+
+    return NextResponse.json({ 
+      success: true, 
+      data: content 
+    });
 
   } catch (error) {
     console.error('Content API POST Error:', error);
@@ -176,7 +201,7 @@ export async function PUT(req: Request) {
       id,
       { $set: updates },
       { new: true, runValidators: true }
-    );
+    ).lean();
 
     if (!updatedContent) {
       return NextResponse.json(
@@ -243,7 +268,7 @@ export async function DELETE(req: Request) {
       }
     }
 
-    // Delete the content
+    // Delete the content from database
     await Content.findByIdAndDelete(id);
 
     return NextResponse.json({
