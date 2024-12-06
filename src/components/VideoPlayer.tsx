@@ -89,11 +89,18 @@ export default function VideoPlayer({
   useEffect(() => {
     if (!isSDKLoaded || !containerRef.current || playerRef.current) return;
 
-    try {
-      const initializePlayer = () => {
+    const loadPlayer = async () => {
+      try {
+        // Wait for BunnyPlayer to be available
+        if (typeof window.BunnyPlayer === 'undefined') {
+          console.log('Waiting for BunnyPlayer SDK to load...');
+          return; // Exit if BunnyPlayer isn't loaded yet
+        }
+
+        console.log('Initializing BunnyPlayer...'); // Debug log
         playerRef.current = new window.BunnyPlayer({
           elementId: playerIdRef.current,
-          videoId,
+          videoId: videoId,
           libraryId: process.env.NEXT_PUBLIC_BUNNY_LIBRARY_ID,
           displayControls: false,
           autoplay: false,
@@ -108,6 +115,7 @@ export default function VideoPlayer({
         });
 
         playerRef.current.on('ready', () => {
+          console.log('Player ready!'); // Debug log
           setIsLoading(false);
           setDuration(playerRef.current.duration || 0);
         });
@@ -137,15 +145,24 @@ export default function VideoPlayer({
           setError('Failed to load video');
           onError?.(new Error(error.message || 'Video playback error'));
         });
-      };
 
-      initializePlayer();
-   } catch (error) {
-      console.error('Error initializing player:', error);
-      setError('Failed to initialize video player');
-    }
+      } catch (error) {
+        console.error('Error initializing player:', error);
+        setError('Failed to initialize video player');
+      }
+    };
 
+    // Check for BunnyPlayer SDK every 100ms until it's available
+    const checkInterval = setInterval(() => {
+      if (typeof window.BunnyPlayer !== 'undefined') {
+        clearInterval(checkInterval);
+        loadPlayer();
+      }
+    }, 100);
+
+    // Cleanup
     return () => {
+      clearInterval(checkInterval);
       if (playerRef.current) {
         playerRef.current.destroy();
         playerRef.current = null;
@@ -245,37 +262,19 @@ export default function VideoPlayer({
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  if (!hasAccess() && hasAttemptedPlay) {
-    return (
-      <div className="relative aspect-video bg-black">
-        <img
-          src={thumbnail || '/api/placeholder/800/450'}
-          alt={title || "Video thumbnail"}
-          className="w-full h-full object-cover opacity-30"
-        />
-        <div className="absolute inset-0 flex flex-col items-center justify-center text-white">
-          <Lock className="w-12 h-12 mb-4" />
-          <h3 className="text-xl font-bold mb-2">Premium Content</h3>
-          <p className="text-center mb-4 text-gray-300">
-            This content is available for {requiredTier} members
-          </p>
-          <button
-            onClick={() => setActiveTab('membership')}
-            className="bg-yellow-400 text-black px-6 py-2 rounded-lg font-medium hover:bg-yellow-500"
-          >
-            Upgrade to {requiredTier}
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-2">
       <Script
         src="https://cdn.bunny.net/player/latest/bunny-player.js"
-        onLoad={() => setIsSDKLoaded(true)}
-        strategy="afterInteractive"
+        strategy="beforeInteractive"
+        onLoad={() => {
+          console.log('BunnyPlayer SDK loaded'); // Debug log
+          setIsSDKLoaded(true);
+        }}
+        onError={(e) => {
+          console.error('Failed to load BunnyPlayer SDK:', e);
+          setError('Failed to load video player');
+        }}
       />
 
       {error && (
@@ -297,99 +296,124 @@ export default function VideoPlayer({
           </div>
         )}
 
-        <div id={playerIdRef.current} className="w-full h-full" />
-
-        {showControls && (
-          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 via-black/40 to-transparent p-4 transition-opacity duration-300">
-            <div
-              className="w-full h-1 bg-gray-600 rounded cursor-pointer mb-4 relative"
-              onClick={handleSeek}
-            >
-              <div
-                className="absolute h-full bg-gray-400 rounded"
-                style={{ width: `${(bufferedTime / duration) * 100}%` }}
-              />
-              <div
-                className="absolute h-full bg-yellow-400 rounded"
-                style={{ width: `${(currentTime / duration) * 100}%` }}
-              />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <button
-                  onClick={togglePlay}
-                  className="text-white hover:text-yellow-400"
-                >
-                  {isPlaying ? (
-                    <Pause className="w-6 h-6" />
-                  ) : (
-                    <Play className="w-6 h-6" />
-                  )}
-                </button>
-
-                <button
-                  onClick={() => skipTime(-10)}
-                  className="text-white hover:text-yellow-400"
-                >
-                  <SkipBack className="w-6 h-6" />
-                </button>
-
-                <button
-                  onClick={() => skipTime(10)}
-                  className="text-white hover:text-yellow-400"
-                >
-                  <SkipForward className="w-6 h-6" />
-                </button>
-
-                <div className="relative">
-                  <button
-                    onClick={toggleMute}
-                    onMouseEnter={() => setShowVolumeSlider(true)}
-                    className="text-white hover:text-yellow-400"
-                  >
-                    {isMuted ? (
-                      <VolumeX className="w-6 h-6" />
-                    ) : (
-                      <Volume2 className="w-6 h-6" />
-                    )}
-                  </button>
-
-                  {showVolumeSlider && (
-                    <div
-                      className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 bg-black/80 p-2 rounded"
-                      onMouseLeave={() => setShowVolumeSlider(false)}
-                    >
-                      <input
-                        type="range"
-                        min="0"
-                        max="1"
-                        step="0.1"
-                        value={isMuted ? 0 : volume}
-                        onChange={handleVolumeChange}
-                        className="w-24 accent-yellow-400"
-                      />
-                    </div>
-                  )}
-                </div>
-
-                <div className="text-white text-sm">
-                  {formatTime(currentTime)} / {formatTime(duration)}
-                </div>
-              </div>
-
+        {!hasAccess() && hasAttemptedPlay ? (
+          <div className="relative aspect-video bg-black">
+            <img
+              src={thumbnail || '/api/placeholder/800/450'}
+              alt={title || "Video thumbnail"}
+              className="w-full h-full object-cover opacity-30"
+            />
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-white">
+              <Lock className="w-12 h-12 mb-4" />
+              <h3 className="text-xl font-bold mb-2">Premium Content</h3>
+              <p className="text-center mb-4 text-gray-300">
+                This content is available for {requiredTier} members
+              </p>
               <button
-                onClick={toggleFullscreen}
-                className="text-white hover:text-yellow-400"
+                onClick={() => setActiveTab('membership')}
+                className="bg-yellow-400 text-black px-6 py-2 rounded-lg font-medium hover:bg-yellow-500"
               >
-                {isFullscreen ? (
-                  <Minimize2 className="w-6 h-6" />
-                ) : (
-                  <Maximize2 className="w-6 h-6" />
-                )}
+                Upgrade to {requiredTier}
               </button>
             </div>
           </div>
+        ) : (
+          <>
+            <div id={playerIdRef.current} className="w-full h-full" />
+
+            {showControls && (
+              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 via-black/40 to-transparent p-4 transition-opacity duration-300">
+                <div
+                  className="w-full h-1 bg-gray-600 rounded cursor-pointer mb-4 relative"
+                  onClick={handleSeek}
+                >
+                  <div
+                    className="absolute h-full bg-gray-400 rounded"
+                    style={{ width: `${(bufferedTime / duration) * 100}%` }}
+                  />
+                  <div
+                    className="absolute h-full bg-yellow-400 rounded"
+                    style={{ width: `${(currentTime / duration) * 100}%` }}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <button
+                      onClick={togglePlay}
+                      className="text-white hover:text-yellow-400"
+                    >
+                      {isPlaying ? (
+                        <Pause className="w-6 h-6" />
+                      ) : (
+                        <Play className="w-6 h-6" />
+                      )}
+                    </button>
+
+                    <button
+                      onClick={() => skipTime(-10)}
+                      className="text-white hover:text-yellow-400"
+                    >
+                      <SkipBack className="w-6 h-6" />
+                    </button>
+
+                    <button
+                      onClick={() => skipTime(10)}
+                      className="text-white hover:text-yellow-400"
+                    >
+                      <SkipForward className="w-6 h-6" />
+                    </button>
+
+                    <div className="relative">
+                      <button
+                        onClick={toggleMute}
+                        onMouseEnter={() => setShowVolumeSlider(true)}
+                        className="text-white hover:text-yellow-400"
+                      >
+                        {isMuted ? (
+                          <VolumeX className="w-6 h-6" />
+                        ) : (
+                          <Volume2 className="w-6 h-6" />
+                        )}
+                      </button>
+
+                      {showVolumeSlider && (
+                        <div
+                          className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 bg-black/80 p-2 rounded"
+                          onMouseLeave={() => setShowVolumeSlider(false)}
+                        >
+                          <input
+                            type="range"
+                            min="0"
+                            max="1"
+                            step="0.1"
+                            value={isMuted ? 0 : volume}
+                            onChange={handleVolumeChange}
+                            className="w-24 accent-yellow-400"
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="text-white text-sm">
+                      {formatTime(currentTime)} / {formatTime(duration)}
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={toggleFullscreen}
+                    className="text-white hover:text-yellow-400"
+                  >
+                    {isFullscreen ? (
+                      <Minimize2 className="w-6 h-6" />
+                    ) : (
+                      <Maximize2 className="w-6 h-6" />
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -410,4 +434,3 @@ export default function VideoPlayer({
     </div>
   );
 }
-
