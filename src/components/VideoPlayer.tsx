@@ -1,5 +1,3 @@
-// src/components/VideoPlayer.tsx
-'use client';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { Lock, Loader2, AlertCircle } from 'lucide-react';
@@ -24,41 +22,48 @@ export default function VideoPlayer({
   const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [hasAccess, setHasAccess] = useState(false);
   const [hasAttemptedPlay, setHasAttemptedPlay] = useState(false);
-  
   const containerRef = useRef<HTMLDivElement>(null);
   const playerIdRef = useRef(`bunny-player-${videoId}`);
 
-  const hasAccess = useCallback(() => {
+  // Check if user has access to this tier
+  const checkAccess = useCallback(() => {
     if (!user?.membershipTier) return false;
     const tierLevels = { basic: 1, premium: 2, allAccess: 3 };
-    const userTierLevel = tierLevels[user.membershipTier as keyof typeof tierLevels] || 0;
+    const userTierLevel = tierLevels[user.membershipTier];
     const requiredLevel = tierLevels[requiredTier];
     return userTierLevel >= requiredLevel;
   }, [user, requiredTier]);
 
+  // Clean up function to stop video playback
+  const cleanupPlayer = () => {
+    if (containerRef.current) {
+      containerRef.current.innerHTML = '';
+    }
+  };
+
   useEffect(() => {
-    if (!containerRef.current) return;
+    setHasAccess(checkAccess());
+
+    if (!hasAccess || !containerRef.current) return;
 
     const initializePlayer = () => {
       try {
-        const iframeSrc = `https://iframe.mediadelivery.net/embed/${process.env.NEXT_PUBLIC_BUNNY_LIBRARY_ID}/${videoId}`;
+        const iframeSrc = `https://iframe.mediadelivery.net/embed/${process.env.NEXT_PUBLIC_BUNNY_LIBRARY_ID}/${videoId}?autoplay=false`;
         
         const iframe = document.createElement('iframe');
         iframe.src = iframeSrc;
         iframe.width = '100%';
         iframe.height = '100%';
-        iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
+        iframe.allow = 'accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
         iframe.allowFullscreen = true;
         iframe.style.border = 'none';
         
-        // Add load event listener to hide loading spinner
         iframe.onload = () => {
           setIsLoading(false);
-          console.log('Video iframe loaded');
         };
 
-        // Add error event listener
         iframe.onerror = () => {
           setError('Failed to load video');
           setIsLoading(false);
@@ -70,12 +75,18 @@ export default function VideoPlayer({
           container.appendChild(iframe);
         }
 
-        // Add message event listener for player events
-        window.addEventListener('message', (event) => {
+        // Listen for play events
+        const handleMessage = (event: MessageEvent) => {
           if (event.data.type === 'play') {
             setHasAttemptedPlay(true);
           }
-        });
+        };
+
+        window.addEventListener('message', handleMessage);
+
+        return () => {
+          window.removeEventListener('message', handleMessage);
+        };
 
       } catch (error) {
         console.error('Error initializing player:', error);
@@ -84,17 +95,16 @@ export default function VideoPlayer({
       }
     };
 
-    initializePlayer();
+    const cleanup = initializePlayer();
     
     return () => {
-      const container = document.getElementById(playerIdRef.current);
-      if (container) {
-        container.innerHTML = '';
-      }
+      cleanupPlayer();
+      cleanup?.();
     };
-  }, [videoId]);
+  }, [videoId, hasAccess, checkAccess]);
 
-  if (!hasAccess() && hasAttemptedPlay) {
+  // Render locked content view
+  if (!hasAccess && (hasAttemptedPlay || !thumbnail)) {
     return (
       <div className="relative aspect-video bg-black">
         <img
