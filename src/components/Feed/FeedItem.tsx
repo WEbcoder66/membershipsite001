@@ -1,3 +1,4 @@
+// src/components/Feed/FeedItem.tsx
 'use client';
 import React, { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
@@ -19,6 +20,8 @@ import ImageGallery from './ImageGallery';
 import AudioPlayer from './AudioPlayer';
 import PollComponent from './PollComponent';
 import PaymentButton from '@/components/PaymentButton';
+import ErrorBoundary from '@/components/ErrorBoundary';
+
 
 interface FeedItemProps {
   post: Post;
@@ -44,81 +47,49 @@ export default function FeedItem({
   const [showComments, setShowComments] = useState(false);
   const dateInfo = formatDate(post.createdAt);
 
-  const hasAccess = () => {
-    if (!user) return false;
-    const tierLevels = { basic: 1, premium: 2, allAccess: 3 };
-    const userTierLevel = tierLevels[user.membershipTier as MembershipTier] || 0;
-    const contentTierLevel = tierLevels[post.tier];
-    return userTierLevel >= contentTierLevel;
-  };
-
-  const badgeColors: Record<MembershipTier, string> = {
-    basic: 'bg-yellow-100 text-yellow-800',
-    premium: 'bg-yellow-200 text-yellow-900',
-    allAccess: 'bg-yellow-300 text-yellow-900'
-  };
-
   const renderContent = () => {
-    if (!hasAccess()) {
+    if (post.type === 'video' && post.mediaContent?.video?.videoId) {
       return (
-        <div className="relative">
-          <div className="aspect-video bg-gray-100" />
-          <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-            <div className="text-center p-6">
-              <Lock className="w-8 h-8 text-white mx-auto mb-2" />
-              <p className="text-white mb-4">
-                Subscribe to {post.tier} tier to unlock this content
-              </p>
-              <PaymentButton
-                price={19.99}
-                name={`${post.tier} Membership`}
-                type="subscription"
-                contentId={post.tier}
-                className="bg-yellow-400 px-6 py-2 rounded-md font-semibold text-black hover:bg-yellow-500"
-              />
-            </div>
-          </div>
-        </div>
+        <ErrorBoundary fallback={<div>Error loading video</div>}>
+          <VideoPlayer
+            videoId={post.mediaContent.video.videoId}
+            thumbnail={post.mediaContent.video.thumbnail}
+            title={post.title}
+            requiredTier={post.tier as MembershipTier}
+            setActiveTab={setActiveTab}
+            onPlay={() => console.log('Video playing:', post.title)}
+            onPause={() => console.log('Video paused:', post.title)}
+            onEnded={() => console.log('Video ended:', post.title)}
+            onError={(error) => console.error('Video error:', error)}
+          />
+        </ErrorBoundary>
       );
     }
 
-    if (!post.mediaContent) return null;
-
-    switch (post.type) {
-      case 'video':
-        return post.mediaContent.video && (
-          <VideoPlayer
-            videoId={post.mediaContent.video.videoId}
-            url={post.mediaContent.video.url}
-            thumbnail={post.mediaContent.video.thumbnail}
-            videoDuration={post.mediaContent.video.duration}
-            title={post.mediaContent.video.title}
-            requiredTier={post.tier}
-            setActiveTab={setActiveTab}
-          />
-        );
-      case 'gallery':
-        return post.mediaContent.gallery && (
-          <ImageGallery images={post.mediaContent.gallery.images} />
-        );
-      case 'audio':
-        return post.mediaContent.audio && (
-          <AudioPlayer
-            url={post.mediaContent.audio.url}
-            duration={post.mediaContent.audio.duration}
-          />
-        );
-      case 'poll':
-        return post.mediaContent.poll && (
-          <PollComponent
-            options={post.mediaContent.poll.options}
-            endDate={post.mediaContent.poll.endDate}
-            multipleChoice={post.mediaContent.poll.multipleChoice}
-          />
-        );
-      default:
-        return null;
+    if (post.type === 'gallery' && post.mediaContent?.gallery) {
+      return <ImageGallery images={post.mediaContent.gallery.images} />;
     }
+
+    if (post.type === 'audio' && post.mediaContent?.audio) {
+      return (
+        <AudioPlayer
+          url={post.mediaContent.audio.url}
+          duration={post.mediaContent.audio.duration}
+        />
+      );
+    }
+
+    if (post.type === 'poll' && post.mediaContent?.poll) {
+      return (
+        <PollComponent
+          options={post.mediaContent.poll.options}
+          endDate={post.mediaContent.poll.endDate}
+          multipleChoice={post.mediaContent.poll.multipleChoice}
+        />
+      );
+    }
+
+    return null;
   };
 
   return (
@@ -128,7 +99,11 @@ export default function FeedItem({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <h2 className="font-bold text-lg text-black">{post.title}</h2>
-            <span className={`text-xs px-2 py-1 rounded-full ${badgeColors[post.tier]}`}>
+            <span className={`text-xs px-2 py-1 rounded-full ${
+              post.tier === 'premium' ? 'bg-yellow-100 text-yellow-800' :
+              post.tier === 'allAccess' ? 'bg-yellow-200 text-yellow-900' :
+              'bg-gray-100 text-gray-800'
+            }`}>
               {post.tier.charAt(0).toUpperCase() + post.tier.slice(1)}
             </span>
             {dateInfo.isNew && (
@@ -147,24 +122,28 @@ export default function FeedItem({
 
       {/* Description */}
       <div className="p-4">
-        <p className={`text-gray-700 ${!isExpanded && 'line-clamp-2'}`}>
-          {post.content || post.description}
-        </p>
-        {(post.content || post.description)?.length > 150 && (
-          <button
-            onClick={() => setIsExpanded(!isExpanded)}
-            className="text-yellow-600 hover:text-yellow-700 text-sm mt-2 flex items-center gap-1"
-          >
-            {isExpanded ? (
-              <>Show less <ChevronUp className="w-4 h-4" /></>
-            ) : (
-              <>Read more <ChevronDown className="w-4 h-4" /></>
+        {post.description && (
+          <>
+            <p className={`text-gray-700 ${!isExpanded && 'line-clamp-2'}`}>
+              {post.description}
+            </p>
+            {post.description.length > 150 && (
+              <button
+                onClick={() => setIsExpanded(!isExpanded)}
+                className="text-yellow-600 hover:text-yellow-700 text-sm mt-2 flex items-center gap-1"
+              >
+                {isExpanded ? (
+                  <>Show less <ChevronUp className="w-4 h-4" /></>
+                ) : (
+                  <>Read more <ChevronDown className="w-4 h-4" /></>
+                )}
+              </button>
             )}
-          </button>
+          </>
         )}
       </div>
 
-      {/* Interactions */}
+      {/* Actions */}
       <div className="px-4 py-3 border-t bg-gray-50 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <button
@@ -203,14 +182,6 @@ export default function FeedItem({
           </button>
         </div>
       </div>
-
-      {/* Comments Section */}
-      {showComments && (
-        <div className="border-t p-4">
-          {/* Add CommentSection component here */}
-        </div>
-      )}
     </article>
   );
 }
-
