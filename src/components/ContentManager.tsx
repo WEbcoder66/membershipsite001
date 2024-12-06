@@ -48,8 +48,6 @@ export default function ContentManager() {
   const [pollEndDate, setPollEndDate] = useState('');
   const [uploadStatus, setUploadStatus] = useState<UploadStatus>('idle');
   const [retryCount, setRetryCount] = useState(0);
-  const [uploadQueue, setUploadQueue] = useState<File[]>([]);
-  const [isProcessingQueue, setIsProcessingQueue] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { user } = useAuth();
@@ -114,21 +112,6 @@ export default function ContentManager() {
     }
   };
 
-  // Process upload queue
-  const processQueue = async () => {
-    if (isProcessingQueue || uploadQueue.length === 0) return;
-    
-    setIsProcessingQueue(true);
-    
-    while (uploadQueue.length > 0) {
-      const nextFile = uploadQueue[0];
-      await handleFileSelection(nextFile);
-      setUploadQueue(prev => prev.slice(1));
-    }
-    
-    setIsProcessingQueue(false);
-  };
-
   // Handle retry
   const handleRetry = async () => {
     if (retryCount >= MAX_RETRIES) {
@@ -138,19 +121,16 @@ export default function ContentManager() {
     
     setRetryCount(prev => prev + 1);
     if (file) {
-      await handleFileSelection(file);
+      await handleCreateContent();
     }
   };
 
   // File selection handlers
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
-    const droppedFiles = Array.from(e.dataTransfer.files);
-    if (droppedFiles.length > 1) {
-      setUploadQueue(prev => [...prev, ...droppedFiles.slice(1)]);
-    }
-    if (droppedFiles[0]) {
-      handleFileSelection(droppedFiles[0]);
+    const droppedFile = e.dataTransfer.files[0];
+    if (droppedFile) {
+      setFile(droppedFile);
     }
   };
 
@@ -159,92 +139,53 @@ export default function ContentManager() {
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFiles = Array.from(e.target.files || []);
-    if (selectedFiles.length > 1) {
-      setUploadQueue(prev => [...prev, ...selectedFiles.slice(1)]);
-    }
-    if (selectedFiles[0]) {
-      handleFileSelection(selectedFiles[0]);
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile) {
+      setFile(selectedFile);
     }
   };
 
-  // Updated handleFileSelection function
-  const handleFileSelection = async (selectedFile: File) => {
-    setFile(selectedFile);
-    setError('');
+  const removeSelectedFile = () => {
+    setFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  // Create content handler
+  const handleCreateContent = async () => {
+    if (!file || !title || !description) {
+      setError('Please fill in all required fields');
+      return;
+    }
+
+    setIsUploading(true);
     setUploadStatus('preparing');
-    
+    setUploadProgress(10);
+
     try {
-      validateFile(selectedFile);
-      
-      if (!title) {
-        throw new Error('Please enter a title before uploading');
-      }
+      validateFile(file);
 
-      setIsUploading(true);
-      setUploadProgress(10);
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('title', title);
+      formData.append('description', description);
+      formData.append('membershipTier', membershipTier);
+      formData.append('contentType', contentType);
 
-      // First, get upload URL
-      const urlResponse = await fetch('/api/videos/get-upload-url', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${user?.email}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ title })
-      });
-
-      if (!urlResponse.ok) {
-        throw new Error('Failed to get upload URL');
-      }
-
-      const { uploadUrl, accessKey, videoId } = await urlResponse.json();
-
-      // Upload to Bunny.net
       setUploadStatus('uploading');
       setUploadProgress(30);
 
-      const uploadResponse = await fetch(uploadUrl, {
-        method: 'PUT',
-        headers: {
-          'AccessKey': accessKey,
-          'Content-Type': 'application/octet-stream'
-        },
-        body: selectedFile
-      });
-
-      if (!uploadResponse.ok) {
-        throw new Error('Failed to upload to Bunny.net');
-      }
-
-      setUploadProgress(80);
-      setUploadStatus('processing');
-
-      // Create the content in your database with simplified video content structure
-      const contentData = {
-        type: 'video',
-        title,
-        description,
-        tier: membershipTier,
-        mediaContent: {
-          video: {
-            videoId,
-            title
-          }
-        }
-      };
-
-      const contentResponse = await fetch('/api/content', {
+      const response = await fetch('/api/content/upload', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': `Bearer ${user?.email}`
         },
-        body: JSON.stringify(contentData)
+        body: formData
       });
 
-      if (!contentResponse.ok) {
-        throw new Error('Failed to save content metadata');
+      if (!response.ok) {
+        throw new Error('Upload failed');
       }
 
       setUploadProgress(100);
@@ -256,11 +197,6 @@ export default function ContentManager() {
       if (activeTab === 'manage') {
         const content = await getAllContent();
         setUploadedContent(content);
-      }
-
-      // Process next item in queue if exists
-      if (uploadQueue.length > 0) {
-        processQueue();
       }
 
     } catch (err) {
@@ -348,8 +284,8 @@ export default function ContentManager() {
     e.preventDefault();
     if (contentType === 'poll') {
       await handleCreatePoll();
-    } else if (file) {
-      await handleFileSelection(file);
+    } else {
+      await handleCreateContent();
     }
   };
 
@@ -490,8 +426,7 @@ export default function ContentManager() {
                     className="mt-2 flex items-center gap-2 text-yellow-600 hover:text-yellow-700"
                   >
                     <PlusCircle className="w-4 h-4" />
-                    Add Option
-                  </button>
+                    Add Option </button>
 
                   <div className="mt-4">
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -515,7 +450,7 @@ export default function ContentManager() {
                     Upload Content
                   </label>
                   <div
-                    className="border-2 border-dashed rounded-lg p-8 text-center"
+                    className="border-2 border-dashed rounded-lg p-8"
                     onDrop={handleDrop}
                     onDragOver={handleDragOver}
                   >
@@ -531,26 +466,28 @@ export default function ContentManager() {
                       onChange={handleFileChange}
                     />
                     
-                    {isUploading ? (
-                      <div className="space-y-4">
-                        <Loader2 className="w-8 h-8 text-yellow-400 animate-spin mx-auto" />
-                        <div className="text-gray-600">
-                          {uploadStatus === 'preparing' ? 'Preparing upload...' :
-                           uploadStatus === 'uploading' ? 'Uploading...' :
-                           uploadStatus === 'processing' ? 'Processing...' : ''}
+                    {file ? (
+                      <div className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                        <div className="flex items-center gap-2">
+                          <FileText className="w-5 h-5 text-gray-500" />
+                          <span className="text-sm text-gray-600">{file.name}</span>
+                          <span className="text-sm text-gray-500">
+                            ({(file.size / (1024 * 1024)).toFixed(2)} MB)
+                          </span>
                         </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div
-                            className="h-full bg-yellow-400 rounded-full transition-all duration-300"
-                            style={{ width: `${uploadProgress}%` }}
-                          />
-                        </div>
+                        <button
+                          type="button"
+                          onClick={removeSelectedFile}
+                          className="p-1 hover:bg-gray-200 rounded"
+                        >
+                          <X className="w-4 h-4 text-gray-500" />
+                        </button>
                       </div>
                     ) : (
-                      <>
+                      <div className="text-center">
                         <Upload className="w-8 h-8 text-gray-400 mx-auto mb-4" />
                         <p className="text-gray-600 mb-2">
-                          {file ? file.name : 'Drag and drop your file here, or click to browse'}
+                          Drag and drop your file here, or click to browse
                         </p>
                         <button
                           type="button"
@@ -559,15 +496,25 @@ export default function ContentManager() {
                         >
                           Select File
                         </button>
-                      </>
+                      </div>
                     )}
                   </div>
-                  
-                  {file && !isUploading && (
-                    <div className="mt-4">
+
+                  {isUploading && (
+                    <div className="mt-4 space-y-2">
                       <div className="flex items-center justify-between text-sm text-gray-600">
-                        <span>{file.name}</span>
-                        <span>{(file.size / (1024 * 1024)).toFixed(2)} MB</span>
+                        <span>
+                          {uploadStatus === 'preparing' ? 'Preparing upload...' :
+                           uploadStatus === 'uploading' ? 'Uploading...' :
+                           uploadStatus === 'processing' ? 'Processing...' : ''}
+                        </span>
+                        <span>{uploadProgress}%</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div
+                          className="h-full bg-yellow-400 rounded-full transition-all duration-300"
+                          style={{ width: `${uploadProgress}%` }}
+                        />
                       </div>
                     </div>
                   )}
@@ -593,10 +540,10 @@ export default function ContentManager() {
               {/* Submit Button */}
               <button
                 type="submit"
-                disabled={isUploading}
+                disabled={isUploading || (!file && contentType !== 'poll') || !title || !description}
                 className={`w-full bg-yellow-400 text-black py-3 rounded-lg font-medium 
                   hover:bg-yellow-500 transition-colors
-                  ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  ${(isUploading || (!file && contentType !== 'poll') || !title || !description) ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 {isUploading ? 'Creating Content...' : 'Create Content'}
               </button>
