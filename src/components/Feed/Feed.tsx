@@ -8,7 +8,6 @@ import {
   Share2, 
   Bookmark,
   Flag,
-  Lock,
   ChevronDown,
   ChevronUp,
   Sparkles,
@@ -173,16 +172,11 @@ export default function Feed({ setActiveTab }: FeedProps) {
               {post.type === 'video' && post.mediaContent?.video?.videoId && (
                 <ErrorBoundary fallback={<VideoErrorFallback />}>
                   <VideoPlayer
-                    key={post.mediaContent.video.videoId}
                     videoId={post.mediaContent.video.videoId}
                     thumbnail={post.mediaContent.video.thumbnail}
                     title={post.title}
                     requiredTier={post.tier as MembershipTier}
                     setActiveTab={setActiveTab}
-                    onPlay={() => console.log('Video playing:', post.title)}
-                    onPause={() => console.log('Video paused:', post.title)}
-                    onEnded={() => console.log('Video ended:', post.title)}
-                    onError={(error) => console.error('Video error:', error)}
                   />
                 </ErrorBoundary>
               )}

@@ -22,7 +22,6 @@ import PollComponent from './PollComponent';
 import PaymentButton from '@/components/PaymentButton';
 import ErrorBoundary from '@/components/ErrorBoundary';
 
-
 interface FeedItemProps {
   post: Post;
   onLike: (postId: string) => void;
@@ -57,10 +56,6 @@ export default function FeedItem({
             title={post.title}
             requiredTier={post.tier as MembershipTier}
             setActiveTab={setActiveTab}
-            onPlay={() => console.log('Video playing:', post.title)}
-            onPause={() => console.log('Video paused:', post.title)}
-            onEnded={() => console.log('Video ended:', post.title)}
-            onError={(error) => console.error('Video error:', error)}
           />
         </ErrorBoundary>
       );
