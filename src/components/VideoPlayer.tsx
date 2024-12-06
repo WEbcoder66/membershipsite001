@@ -104,25 +104,35 @@ export default function VideoPlayer({
   }, [videoId, hasAccess, checkAccess]);
 
   // Render locked content view
-  if (!hasAccess && (hasAttemptedPlay || !thumbnail)) {
+  if (!hasAccess) {
     return (
-      <div className="relative aspect-video bg-black">
-        <img
-          src={thumbnail || '/api/placeholder/800/450'}
-          alt={title || "Video thumbnail"}
-          className="w-full h-full object-cover opacity-30"
-        />
-        <div className="absolute inset-0 flex flex-col items-center justify-center text-white">
-          <Lock className="w-12 h-12 mb-4" />
-          <h3 className="text-xl font-bold mb-2">Premium Content</h3>
-          <p className="text-center mb-4 text-gray-300">
-            This content is available for {requiredTier} members
+      <div className="relative aspect-video bg-black rounded-lg overflow-hidden">
+        {/* Blurred Thumbnail */}
+        <div className="absolute inset-0">
+          <img
+            src={thumbnail || '/api/placeholder/800/450'}
+            alt={title || "Video thumbnail"}
+            className="w-full h-full object-cover filter blur-sm scale-105"
+          />
+          <div className="absolute inset-0 bg-black/50" /> {/* Dark overlay */}
+        </div>
+
+        {/* Lock Icon and Text */}
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-white z-10 p-6">
+          <div className="w-16 h-16 rounded-full bg-black/30 flex items-center justify-center mb-4">
+            <Lock className="w-8 h-8" />
+          </div>
+          <h3 className="text-2xl font-bold mb-2 text-center">
+            {requiredTier} Content
+          </h3>
+          <p className="text-center mb-6 text-lg text-gray-200">
+            Subscribe to {requiredTier} to unlock this video
           </p>
           <button
             onClick={() => setActiveTab('membership')}
-            className="bg-yellow-400 text-black px-6 py-2 rounded-lg font-medium hover:bg-yellow-500"
+            className="bg-yellow-400 text-black px-8 py-3 rounded-lg font-semibold hover:bg-yellow-500 transition-colors"
           >
-            Upgrade to {requiredTier}
+            Join to Unlock
           </button>
         </div>
       </div>
@@ -140,7 +150,7 @@ export default function VideoPlayer({
       
       <div 
         ref={containerRef}
-        className="relative aspect-video bg-black"
+        className="relative aspect-video bg-black rounded-lg overflow-hidden"
       >
         {isLoading && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/30 z-20">
