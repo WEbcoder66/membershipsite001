@@ -1,7 +1,6 @@
 // src/components/VideoPlayer.tsx
 'use client';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import Script from 'next/script';
 import { useAuth } from '@/context/AuthContext';
 import { Lock, Loader2, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -15,12 +14,6 @@ interface VideoPlayerProps {
   setActiveTab: (tab: string) => void;
 }
 
-declare global {
-  interface Window {
-    BunnyPlayer: any;
-  }
-}
-
 export default function VideoPlayer({
   videoId,
   thumbnail,
@@ -32,10 +25,8 @@ export default function VideoPlayer({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hasAttemptedPlay, setHasAttemptedPlay] = useState(false);
-  const [isSDKLoaded, setIsSDKLoaded] = useState(false);
   
   const containerRef = useRef<HTMLDivElement>(null);
-  const playerRef = useRef<any>(null);
   const playerIdRef = useRef(`bunny-player-${videoId}`);
 
   const hasAccess = useCallback(() => {
@@ -47,72 +38,61 @@ export default function VideoPlayer({
   }, [user, requiredTier]);
 
   useEffect(() => {
-    if (!isSDKLoaded || !containerRef.current || playerRef.current) return;
+    if (!containerRef.current) return;
 
     const initializePlayer = () => {
-      if (typeof window.BunnyPlayer === 'undefined') {
-        console.log('Waiting for BunnyPlayer SDK...');
-        return;
-      }
-
       try {
-        console.log('Initializing BunnyPlayer for video:', videoId);
-        playerRef.current = new window.BunnyPlayer({
-          elementId: playerIdRef.current,
-          videoId: videoId,
-          libraryId: process.env.NEXT_PUBLIC_BUNNY_LIBRARY_ID || '',
-          title: false,
-          autoplay: false,
-          volume: 100,
-          width: '100%',
-          height: '100%',
-          controls: true,
-          enableSharing: false,
-          hidePlayerElementsOnPlay: false,
-          showQuality: true,
-          showSpeed: true,
-          preload: true
-        });
-
-        playerRef.current.on('ready', () => {
-          console.log('Player ready');
+        const iframeSrc = `https://iframe.mediadelivery.net/embed/${process.env.NEXT_PUBLIC_BUNNY_LIBRARY_ID}/${videoId}`;
+        
+        const iframe = document.createElement('iframe');
+        iframe.src = iframeSrc;
+        iframe.width = '100%';
+        iframe.height = '100%';
+        iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
+        iframe.allowFullscreen = true;
+        iframe.style.border = 'none';
+        
+        // Add load event listener to hide loading spinner
+        iframe.onload = () => {
           setIsLoading(false);
-        });
+          console.log('Video iframe loaded');
+        };
 
-        playerRef.current.on('error', (error: any) => {
-          console.error('Player error:', error);
+        // Add error event listener
+        iframe.onerror = () => {
           setError('Failed to load video');
-        });
+          setIsLoading(false);
+        };
+        
+        const container = document.getElementById(playerIdRef.current);
+        if (container) {
+          container.innerHTML = '';
+          container.appendChild(iframe);
+        }
 
-        playerRef.current.on('play', () => {
-          setHasAttemptedPlay(true);
+        // Add message event listener for player events
+        window.addEventListener('message', (event) => {
+          if (event.data.type === 'play') {
+            setHasAttemptedPlay(true);
+          }
         });
 
       } catch (error) {
         console.error('Error initializing player:', error);
         setError('Failed to initialize video player');
+        setIsLoading(false);
       }
     };
 
-    const checkInterval = setInterval(() => {
-      if (typeof window.BunnyPlayer !== 'undefined') {
-        clearInterval(checkInterval);
-        initializePlayer();
-      }
-    }, 100);
-
+    initializePlayer();
+    
     return () => {
-      clearInterval(checkInterval);
-      if (playerRef.current) {
-        try {
-          playerRef.current.destroy();
-          playerRef.current = null;
-        } catch (error) {
-          console.error('Error destroying player:', error);
-        }
+      const container = document.getElementById(playerIdRef.current);
+      if (container) {
+        container.innerHTML = '';
       }
     };
-  }, [isSDKLoaded, videoId]);
+  }, [videoId]);
 
   if (!hasAccess() && hasAttemptedPlay) {
     return (
@@ -141,19 +121,6 @@ export default function VideoPlayer({
 
   return (
     <div className="space-y-2">
-      <Script
-        src="https://cdn.bunny.net/player/latest/bunny-player.js"
-        strategy="afterInteractive"
-        onLoad={() => {
-          console.log('BunnyPlayer SDK loaded');
-          setIsSDKLoaded(true);
-        }}
-        onError={(e) => {
-          console.error('Failed to load BunnyPlayer SDK:', e);
-          setError('Failed to load video player');
-        }}
-      />
-
       {error && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
