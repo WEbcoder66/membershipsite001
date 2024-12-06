@@ -41,6 +41,12 @@ export class BunnyVideoService {
 
     // Validate required configuration
     if (!this.config.apiKey || !this.config.libraryId || !this.config.cdnUrl || !this.config.securityKey) {
+      console.error('Missing Bunny.net configuration:', {
+        hasApiKey: !!this.config.apiKey,
+        hasLibraryId: !!this.config.libraryId,
+        hasCdnUrl: !!this.config.cdnUrl,
+        hasSecurityKey: !!this.config.securityKey
+      });
       throw new Error('Missing required Bunny.net configuration');
     }
   }
@@ -48,55 +54,95 @@ export class BunnyVideoService {
   private async makeRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = `${this.API_BASE_URL}/${this.config.libraryId}${endpoint}`;
     
-    console.log('Making request to:', url);
+    console.log('Making Bunny.net API request:', {
+      url,
+      method: options.method || 'GET',
+      endpoint
+    });
 
     const headers = {
       'AccessKey': this.config.apiKey,
       ...options.headers
     };
 
-    const response = await fetch(url, { ...options, headers });
-    
-    if (!response.ok) {
-      const error = await response.text();
-      console.error('Bunny.net API error:', {
-        status: response.status,
-        url,
-        error
-      });
-      throw new Error(`Bunny.net API error (${response.status}): ${error}`);
-    }
+    try {
+      const response = await fetch(url, { ...options, headers });
+      
+      if (!response.ok) {
+        const error = await response.text();
+        console.error('Bunny.net API error:', {
+          status: response.status,
+          url,
+          error
+        });
+        throw new Error(`Bunny.net API error (${response.status}): ${error}`);
+      }
 
-    return response.json();
+      return response.json();
+    } catch (error) {
+      console.error('Bunny.net request failed:', error);
+      throw error;
+    }
   }
 
-  private async generateToken(videoId: string): Promise<{ token: string; expires: number }> {
-    const timestamp = Math.floor(Date.now() / 1000);
-    const expires = timestamp + 3600; // 1 hour expiration
-    const hashableBase = `${this.config.securityKey}${videoId}${expires}`;
-    
-    const encoder = new TextEncoder();
-    const data = encoder.encode(hashableBase);
-    const key = await crypto.subtle.importKey(
-      'raw',
-      encoder.encode(this.config.securityKey),
-      { name: 'HMAC', hash: 'SHA-256' },
-      false,
-      ['sign']
-    );
-    
-    const signatureBuffer = await crypto.subtle.sign('HMAC', key, data);
-    const token = Array.from(new Uint8Array(signatureBuffer))
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join('');
+  private async generateToken(videoId: string, path: string = 'video'): Promise<{ token: string; expires: number }> {
+    try {
+      const timestamp = Math.floor(Date.now() / 1000);
+      const expires = timestamp + 3600; // 1 hour expiration
+      const pathPart = path === 'thumbnail' ? 'thumbnail.jpg' : 'play.mp4';
+      const hashableBase = `${this.config.securityKey}${videoId}/${pathPart}${expires}`;
+      
+      // Use Web Crypto API for HMAC-SHA256
+      const encoder = new TextEncoder();
+      const data = encoder.encode(hashableBase);
+      const key = await crypto.subtle.importKey(
+        'raw',
+        encoder.encode(this.config.securityKey),
+        { name: 'HMAC', hash: 'SHA-256' },
+        false,
+        ['sign']
+      );
+      
+      const signatureBuffer = await crypto.subtle.sign('HMAC', key, data);
+      const token = Array.from(new Uint8Array(signatureBuffer))
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('');
 
-    return { token, expires };
+      console.log('Generated security token:', {
+        videoId,
+        expires,
+        pathPart,
+        tokenLength: token.length
+      });
+
+      return { token, expires };
+    } catch (error) {
+      console.error('Token generation error:', error);
+      throw new Error('Failed to generate security token');
+    }
   }
 
   async getVideoUrl(videoId: string, type: 'video' | 'thumbnail' = 'video'): Promise<string> {
-    const { token, expires } = await this.generateToken(videoId);
-    const path = type === 'thumbnail' ? 'thumbnail.jpg' : 'play.mp4';
-    return `${this.config.cdnUrl}/${videoId}/${path}?token=${token}&expires=${expires}`;
+    try {
+      const { token, expires } = await this.generateToken(videoId, type);
+      const path = type === 'thumbnail' ? 'thumbnail.jpg' : 'play.mp4';
+      const url = `${this.config.cdnUrl}/${videoId}/${path}?token=${token}&expires=${expires}`;
+      
+      console.log('Generated video URL:', {
+        videoId,
+        type,
+        urlLength: url.length
+      });
+
+      return url;
+    } catch (error) {
+      console.error('Error getting video URL:', error);
+      throw error;
+    }
+  }
+
+  async getEmbedUrl(videoId: string): Promise<string> {
+    return `https://iframe.mediadelivery.net/embed/${this.config.libraryId}/${videoId}`;
   }
 
   async createVideo(title: string): Promise<{ guid: string }> {
@@ -111,6 +157,12 @@ export class BunnyVideoService {
 
   async uploadVideo(guid: string, fileData: ArrayBuffer): Promise<void> {
     const url = `${this.API_BASE_URL}/${this.config.libraryId}/videos/${guid}`;
+    
+    console.log('Uploading video:', {
+      guid,
+      fileSize: fileData.byteLength
+    });
+
     const response = await fetch(url, {
       method: 'PUT',
       headers: {
@@ -122,14 +174,21 @@ export class BunnyVideoService {
 
     if (!response.ok) {
       const error = await response.text();
+      console.error('Video upload failed:', error);
       throw new Error(`Failed to upload video: ${error}`);
     }
   }
 
   async deleteVideo(guid: string): Promise<void> {
-    await this.makeRequest<void>(`/videos/${guid}`, {
-      method: 'DELETE'
-    });
+    try {
+      await this.makeRequest<void>(`/videos/${guid}`, {
+        method: 'DELETE'
+      });
+      console.log('Successfully deleted video:', guid);
+    } catch (error) {
+      console.error('Error deleting video:', error);
+      throw error;
+    }
   }
 
   async getVideoInfo(guid: string): Promise<BunnyVideoResponse> {
@@ -157,12 +216,27 @@ export class BunnyVideoService {
     const uploadUrl = `${this.API_BASE_URL}/${this.config.libraryId}/videos/${guid}`;
     return { id: guid, uploadUrl };
   }
+
+  async checkVideoStatus(guid: string): Promise<'created' | 'processing' | 'ready' | 'failed'> {
+    try {
+      const videoInfo = await this.getVideoInfo(guid);
+      switch (videoInfo.status) {
+        case 1: return 'processing';
+        case 2: return 'ready';
+        case 3: return 'failed';
+        default: return 'created';
+      }
+    } catch (error) {
+      console.error('Error checking video status:', error);
+      throw error;
+    }
+  }
 }
 
-// Export a singleton instance for server-side use
+// Export a singleton instance
 export const bunnyVideo = new BunnyVideoService();
 
-// Add logging to help debug initialization
+// Debug info on initialization
 console.log('Initializing BunnyVideoService with:', {
   hasApiKey: !!process.env.BUNNY_API_KEY,
   hasLibraryId: !!process.env.BUNNY_LIBRARY_ID,

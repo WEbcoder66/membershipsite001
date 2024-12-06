@@ -33,8 +33,6 @@ interface VideoPlayerProps {
   loop?: boolean;
   muted?: boolean;
   showControls?: boolean;
-  width?: string | number;
-  height?: string | number;
   onReady?: () => void;
   onPlay?: () => void;
   onPause?: () => void;
@@ -62,8 +60,6 @@ export default function VideoPlayer({
   loop = false,
   muted = false,
   showControls = true,
-  width = '100%',
-  height = 'auto',
   onReady,
   onPlay,
   onPause,
@@ -91,14 +87,16 @@ export default function VideoPlayer({
   const maxRetries = 3;
   const retryDelay = 2000;
 
-  // Generate video source URL using public environment variable
-  const videoSource = url || `https://iframe.mediadelivery.net/embed/${process.env.NEXT_PUBLIC_BUNNY_LIBRARY_ID}/${videoId}`;
+  // Generate iframe embed URL
+  const videoSource = `https://iframe.mediadelivery.net/embed/${process.env.NEXT_PUBLIC_BUNNY_LIBRARY_ID}/${videoId}`;
 
   // Debug logging
   useEffect(() => {
-    console.log('Video source:', videoSource);
-    console.log('Video ID:', videoId);
-    console.log('Library ID:', process.env.NEXT_PUBLIC_BUNNY_LIBRARY_ID);
+    console.log('Video Player Mount:', {
+      videoId,
+      videoSource,
+      libraryId: process.env.NEXT_PUBLIC_BUNNY_LIBRARY_ID
+    });
   }, [videoId, videoSource]);
 
   const hasAccess = useCallback(() => {
@@ -120,13 +118,14 @@ export default function VideoPlayer({
   }, [videoSource]);
 
   const handleError = useCallback((errorData: any) => {
+    console.error('Video Player Error:', errorData);
+    
     const error: PlayerError = {
       type: errorData.type || 'unknown',
       message: errorData.message || 'An error occurred while playing the video',
       details: errorData
     };
 
-    console.error('Video player error:', error);
     setError(error);
     onError?.(new Error(error.message));
 
@@ -137,39 +136,13 @@ export default function VideoPlayer({
         retryPlayback();
       }, retryDelay);
     }
-  }, [retryCount, maxRetries, retryDelay, retryPlayback, onError]);
-
-  useEffect(() => {
-    if (!videoId || !hasAccess()) return;
-
-    const script = document.createElement('script');
-    script.src = 'https://iframe.mediadelivery.net/embed/js';
-    script.async = true;
-    script.onload = () => {
-      console.log('Bunny player script loaded');
-      setIsLoading(false);
-    };
-    script.onerror = (error) => {
-      console.error('Error loading Bunny player script:', error);
-      setError({
-        type: 'script_load_error',
-        message: 'Failed to load video player',
-        details: error
-      });
-    };
-    document.body.appendChild(script);
-
-    return () => {
-      const existingScript = document.querySelector('script[src="https://iframe.mediadelivery.net/embed/js"]');
-      if (existingScript) {
-        document.body.removeChild(existingScript);
-      }
-    };
-  }, [videoId, hasAccess]);
+  }, [retryCount, maxRetries, retryPlayback, onError]);
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       if (event.origin !== 'https://iframe.mediadelivery.net') return;
+
+      console.log('Received player message:', event.data);
 
       const { type, data } = event.data;
       switch (type) {
@@ -236,6 +209,7 @@ export default function VideoPlayer({
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newVolume = parseFloat(e.target.value);
     setVolume(newVolume);
+    setIsMuted(newVolume === 0);
     postMessage('setVolume', { volume: newVolume });
   };
 
@@ -428,7 +402,6 @@ export default function VideoPlayer({
         )}
       </div>
 
-     {/* Title and Duration */}
       {title && (
         <div className="mt-4 space-y-1">
           <h2 className="text-lg font-bold text-gray-900">{title}</h2>
@@ -447,4 +420,3 @@ export default function VideoPlayer({
     </div>
   );
 }
-

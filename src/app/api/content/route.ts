@@ -21,6 +21,8 @@ export async function GET(req: Request) {
     const type = url.searchParams.get('type');
     const searchQuery = url.searchParams.get('search');
     
+    console.log('Fetching content with params:', { page, limit, tier, type, searchQuery });
+
     // Build query based on parameters
     const query: any = {};
     if (tier) query.tier = tier;
@@ -34,6 +36,8 @@ export async function GET(req: Request) {
 
     // Execute query with pagination
     const skip = (page - 1) * limit;
+    console.log('Executing MongoDB query:', { query, skip, limit });
+
     const [content, total] = await Promise.all([
       Content.find(query)
         .sort({ createdAt: -1 })
@@ -43,12 +47,18 @@ export async function GET(req: Request) {
       Content.countDocuments(query)
     ]);
 
+    console.log(`Found ${content.length} items out of ${total} total`);
+
     // Generate secure URLs for content with videos
     const contentWithUrls = await Promise.all(content.map(async (item) => {
       if (item.mediaContent?.video?.videoId) {
         try {
-          // Generate secure URLs for video and thumbnail
-          const videoUrl = await bunnyVideo.getVideoUrl(item.mediaContent.video.videoId, 'video');
+          console.log('Processing video with ID:', item.mediaContent.video.videoId);
+          
+          // We will now use the embed URL instead of direct video URL
+          const embedUrl = `https://iframe.mediadelivery.net/embed/${process.env.NEXT_PUBLIC_BUNNY_LIBRARY_ID}/${item.mediaContent.video.videoId}`;
+          
+          // Still generate a thumbnail URL with security token
           const thumbnailUrl = await bunnyVideo.getVideoUrl(item.mediaContent.video.videoId, 'thumbnail');
           
           return {
@@ -57,13 +67,13 @@ export async function GET(req: Request) {
               ...item.mediaContent,
               video: {
                 ...item.mediaContent.video,
-                url: videoUrl,
+                url: embedUrl,
                 thumbnail: thumbnailUrl
               }
             }
           };
         } catch (error) {
-          console.error(`Error generating URLs for video ${item.mediaContent.video.videoId}:`, error);
+          console.error(`Error processing video ${item.mediaContent.video.videoId}:`, error);
           return item;
         }
       }
@@ -108,7 +118,7 @@ export async function POST(req: Request) {
     const { type, title, description, tier, mediaContent } = await req.json();
     
     // Check for required fields
-    if (!type || !title || !description || !tier) {
+    if (!type || !title || !tier) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
@@ -121,19 +131,19 @@ export async function POST(req: Request) {
     
     if (videoId) {
       try {
-        const videoUrl = await bunnyVideo.getVideoUrl(videoId, 'video');
+        const embedUrl = `https://iframe.mediadelivery.net/embed/${process.env.NEXT_PUBLIC_BUNNY_LIBRARY_ID}/${videoId}`;
         const thumbnailUrl = await bunnyVideo.getVideoUrl(videoId, 'thumbnail');
         
         processedMediaContent = {
           video: {
             ...mediaContent.video,
-            url: videoUrl,
+            url: embedUrl,
             thumbnail: thumbnailUrl
           }
         };
       } catch (error) {
         console.error('Error processing video URLs:', error);
-        throw new Error('Failed to generate secure video URLs');
+        throw new Error('Failed to generate video URLs');
       }
     }
 
@@ -148,6 +158,8 @@ export async function POST(req: Request) {
       createdAt: new Date(),
       updatedAt: new Date()
     });
+
+    console.log('Created new content:', content);
 
     return NextResponse.json({ 
       success: true, 
@@ -193,7 +205,7 @@ export async function PUT(req: Request) {
     // Handle video URL updates if necessary
     if (updates.mediaContent?.video?.videoId) {
       const videoId = updates.mediaContent.video.videoId;
-      updates.mediaContent.video.url = await bunnyVideo.getVideoUrl(videoId, 'video');
+      updates.mediaContent.video.url = `https://iframe.mediadelivery.net/embed/${process.env.NEXT_PUBLIC_BUNNY_LIBRARY_ID}/${videoId}`;
       updates.mediaContent.video.thumbnail = await bunnyVideo.getVideoUrl(videoId, 'thumbnail');
     }
 
@@ -262,6 +274,7 @@ export async function DELETE(req: Request) {
     if (content.mediaContent?.video?.videoId) {
       try {
         await bunnyVideo.deleteVideo(content.mediaContent.video.videoId);
+        console.log('Successfully deleted video from Bunny.net:', content.mediaContent.video.videoId);
       } catch (error) {
         console.error('Failed to delete video from Bunny.net:', error);
         // Continue with content deletion even if video deletion fails
