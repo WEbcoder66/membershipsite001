@@ -16,9 +16,7 @@ import {
   X,
   MessageSquare,
   Music,
-  FileText,
-  XCircle,
-  RefreshCcw
+  FileText
 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
@@ -426,7 +424,8 @@ export default function ContentManager() {
                     className="mt-2 flex items-center gap-2 text-yellow-600 hover:text-yellow-700"
                   >
                     <PlusCircle className="w-4 h-4" />
-                    Add Option </button>
+                    Add Option
+                  </button>
 
                   <div className="mt-4">
                     <label className="block text-sm font-medium text-gray-700 mb-1">

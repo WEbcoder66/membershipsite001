@@ -1,21 +1,26 @@
 // src/app/api/content/upload/route.ts
 import { NextResponse } from 'next/server';
-import { headers } from 'next/headers';
+import { validateAdmin } from '@/lib/auth';
+import { bunnyVideo } from '@/lib/bunnyService';
+import Content from '@/models/Content';
+import dbConnect from '@/lib/mongodb';
 
-// SproutVideo API configuration
-const SPROUTVIDEO_API_KEY = process.env.SPROUTVIDEO_API_KEY;
-const SPROUTVIDEO_API_URL = 'https://api.sproutvideo.com/v1';
+// Route segment config
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 export async function POST(req: Request) {
   try {
-    // Get the authorization header
-    const headersList = headers();
-    const authHeader = headersList.get('authorization');
+    await dbConnect();
     
-    // Simple check for admin status based on local storage data
-    // In production, you'd want a more secure authentication method
-    if (!authHeader || !authHeader.includes('admin')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // Validate admin access
+    const validation = await validateAdmin();
+    
+    if (!validation.isValid) {
+      return NextResponse.json(
+        { error: validation.message || 'Unauthorized' },
+        { status: 401 }
+      );
     }
 
     const formData = await req.formData();
@@ -31,53 +36,67 @@ export async function POST(req: Request) {
       );
     }
 
-    // Create a new video in SproutVideo
-    const createVideoResponse = await fetch(`${SPROUTVIDEO_API_URL}/videos`, {
-      method: 'POST',
-      headers: {
-        'SproutVideo-Api-Key': SPROUTVIDEO_API_KEY!,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+    try {
+      // Create video in Bunny.net
+      console.log('Creating video:', { title });
+      const { guid } = await bunnyVideo.createVideo(title);
+
+      // Upload video data
+      console.log('Uploading video to Bunny.net...');
+      const arrayBuffer = await file.arrayBuffer();
+      await bunnyVideo.uploadVideo(guid, arrayBuffer);
+      console.log('Video upload complete');
+
+      // Create content record
+      console.log('Creating content record in database...');
+      const content = await Content.create({
+        type: 'video',
         title,
         description,
-        tags: [membershipTier],
-        privacy: 'private',
-        domain_restrictions: true,
-        signed_urls: true
-      }),
-    });
+        tier: membershipTier,
+        mediaContent: {
+          video: {
+            videoId: guid,
+            title,
+          }
+        },
+        isLocked: true,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
 
-    if (!createVideoResponse.ok) {
-      throw new Error('Failed to create video');
+      return NextResponse.json({
+        success: true,
+        data: content
+      });
+
+    } catch (uploadError) {
+      console.error('Error during video upload process:', uploadError);
+      return NextResponse.json(
+        { error: 'Failed to upload video content' },
+        { status: 500 }
+      );
     }
-
-    const { token } = await createVideoResponse.json();
-
-    // Upload the video file
-    const uploadResponse = await fetch(`${SPROUTVIDEO_API_URL}/videos/${token}/upload`, {
-      method: 'POST',
-      headers: {
-        'SproutVideo-Api-Key': SPROUTVIDEO_API_KEY!,
-      },
-      body: file
-    });
-
-    if (!uploadResponse.ok) {
-      throw new Error('Failed to upload video');
-    }
-
-    return NextResponse.json({
-      success: true,
-      message: 'Video uploaded successfully',
-      videoId: token
-    });
 
   } catch (error) {
     console.error('Upload error:', error);
     return NextResponse.json(
-      { error: 'Failed to upload content' },
+      { error: 'Failed to process upload request' },
       { status: 500 }
     );
   }
+}
+
+// OPTIONS for CORS
+export async function OPTIONS() {
+  return NextResponse.json(
+    {},
+    {
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+      }
+    }
+  );
 }
