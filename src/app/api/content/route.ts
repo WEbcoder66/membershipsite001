@@ -47,7 +47,10 @@ export async function GET(req: Request) {
       Content.countDocuments(query)
     ]);
 
-    console.log(`Found ${content.length} items out of ${total} total`);
+     // Add the debug log right here, after fetching content
+    console.log('Raw content from DB:', JSON.stringify(content[0], null, 2));
+
+   console.log(`Found ${content.length} items out of ${total} total`);
 
     // Generate secure URLs for content with videos
     const contentWithUrls = await Promise.all(content.map(async (item) => {

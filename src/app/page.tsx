@@ -181,7 +181,17 @@ export default function Home() {
           </div>
         )}
 
-        <ErrorBoundary>
+        <ErrorBoundary
+          fallback={
+            <div className="max-w-4xl mx-auto px-4 py-8">
+              <Alert variant="destructive">
+                <AlertDescription>
+                  Something went wrong while loading the content. Please try refreshing the page.
+                </AlertDescription>
+              </Alert>
+            </div>
+          }
+        >
           {activeTab === 'home' && <Feed setActiveTab={handleSetActiveTab} />}
           {activeTab === 'about' && <AboutContent />}
           {activeTab === 'membership' && <MembershipTiers onSubscribe={() => setShowWelcome(true)} />}

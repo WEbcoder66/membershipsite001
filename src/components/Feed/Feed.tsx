@@ -18,10 +18,33 @@ import VideoPlayer from '@/components/VideoPlayer';
 import CommentSection from '@/components/CommentSection';
 import { formatDate } from '@/lib/utils';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import ErrorBoundary from '@/components/ErrorBoundary';
 
 interface FeedProps {
   setActiveTab: (tab: string) => void;
 }
+
+const ErrorFallback = () => (
+  <div className="max-w-4xl mx-auto px-4 py-8">
+    <Alert variant="destructive">
+      <AlertDescription>
+        Something went wrong while loading the feed. Please try refreshing the page.
+      </AlertDescription>
+    </Alert>
+  </div>
+);
+
+const VideoErrorFallback = () => (
+  <div className="p-4 bg-red-50 text-red-700 rounded-lg">
+    <p>Error loading video player. Please try refreshing the page.</p>
+  </div>
+);
+
+const CommentsErrorFallback = () => (
+  <div className="p-4 bg-red-50 text-red-700 rounded-lg">
+    <p>Error loading comments section. Please try refreshing the page.</p>
+  </div>
+);
 
 export default function Feed({ setActiveTab }: FeedProps) {
   const { user } = useAuth();
@@ -32,10 +55,6 @@ export default function Feed({ setActiveTab }: FeedProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const getVideoId = (content: Content): string => {
-    return content.mediaContent?.video?.videoId || content.id;
-  };
-
   useEffect(() => {
     const fetchContent = async () => {
       try {
@@ -44,8 +63,24 @@ export default function Feed({ setActiveTab }: FeedProps) {
           throw new Error('Failed to fetch content');
         }
         const data = await response.json();
-        console.log('Content fetched:', data);
-        setContent(data.data || []);
+        console.log('Content data:', data);
+        if (data.success && Array.isArray(data.data)) {
+          data.data.forEach((item: Content) => {
+            if (item.type === 'video' && item.mediaContent?.video) {
+              console.log('Video content item:', {
+                id: item.id,
+                videoId: item.mediaContent.video.videoId,
+                url: item.mediaContent.video.url,
+                title: item.title,
+                completeVideoData: item.mediaContent.video,
+                requiredTier: item.tier
+              });
+            }
+          });
+          setContent(data.data);
+        } else {
+          throw new Error('Invalid content data structure');
+        }
       } catch (err) {
         console.error('Error fetching content:', err);
         setError(err instanceof Error ? err.message : 'Failed to load content');
@@ -110,153 +145,149 @@ export default function Feed({ setActiveTab }: FeedProps) {
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="max-w-4xl mx-auto px-4 py-8 flex justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-yellow-400" />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      </div>
-    );
-  }
-
-  if (!content.length) {
-    return (
-      <div className="max-w-4xl mx-auto px-4 py-8 text-center">
-        <p className="text-gray-600">No content available</p>
-      </div>
-    );
-  }
-
   return (
-    <div className="max-w-4xl mx-auto px-4">
-      <div className="space-y-6">
-        {content.map((post) => {
-          const dateInfo = formatDate(post.createdAt);
-          const postContent = post.content || post.description || '';
+    <ErrorBoundary fallback={<ErrorFallback />}>
+      <div className="max-w-4xl mx-auto px-4">
+        {error && (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
 
-          return (
-            <article key={post.id} className="bg-white rounded-lg shadow-lg overflow-hidden">
-              {/* Post Header */}
-              <div className="p-4 border-b">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <h2 className="font-bold text-lg text-black">{post.title}</h2>
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      post.tier === 'premium' ? 'bg-yellow-100 text-yellow-800' : 
-                      post.tier === 'allAccess' ? 'bg-yellow-200 text-yellow-900' :
-                      'bg-gray-100 text-gray-800'
-                    }`}>
-                      {post.tier.charAt(0).toUpperCase() + post.tier.slice(1)}
-                    </span>
-                    {dateInfo.isNew && (
-                      <span className="flex items-center gap-1 px-2 py-1 bg-yellow-100 rounded-full text-xs font-medium text-yellow-800">
-                        <Sparkles className="w-3 h-3" />
-                        New
-                      </span>
-                    )}
+        {isLoading ? (
+          <div className="flex justify-center py-8">
+            <Loader2 className="w-8 h-8 animate-spin text-yellow-400" />
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {content.map((post) => {
+              const dateInfo = formatDate(post.createdAt);
+              const postContent = post.content || post.description || '';
+
+              return (
+                <article key={post.id} className="bg-white rounded-lg shadow-lg overflow-hidden">
+                  {/* Post Header */}
+                  <div className="p-4 border-b">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <h2 className="font-bold text-lg text-black">{post.title}</h2>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          post.tier === 'premium' ? 'bg-yellow-100 text-yellow-800' : 
+                          post.tier === 'allAccess' ? 'bg-yellow-200 text-yellow-900' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {post.tier.charAt(0).toUpperCase() + post.tier.slice(1)}
+                        </span>
+                        {dateInfo.isNew && (
+                          <span className="flex items-center gap-1 px-2 py-1 bg-yellow-100 rounded-full text-xs font-medium text-yellow-800">
+                            <Sparkles className="w-3 h-3" />
+                            New
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-sm text-gray-600">{dateInfo.text}</span>
+                    </div>
                   </div>
-                  <span className="text-sm text-gray-600">{dateInfo.text}</span>
-                </div>
-              </div>
 
-              {/* Post Content */}
-              {post.type === 'video' && post.mediaContent?.video ? (
-                <VideoPlayer
-                  videoId={getVideoId(post)}
-                  url={post.mediaContent.video.url}
-                  thumbnail={post.mediaContent.video.thumbnail}
-                  title={post.title}
-                  requiredTier={post.tier as MembershipTier}
-                  videoDuration={post.mediaContent.video.duration}
-                  setActiveTab={setActiveTab}
-                />
-              ) : (
-                <div className="p-4">
-                  {!hasAccess(post.tier) ? (
-                    <div className="bg-gray-50 p-6 rounded-lg text-center">
-                      <Lock className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-                      <p className="text-gray-600 mb-4">
-                        This content is available for {post.tier} members
-                      </p>
-                      <button
-                        onClick={() => setActiveTab('membership')}
-                        className="bg-yellow-400 text-black px-6 py-2 rounded-lg font-medium hover:bg-yellow-500"
+                  {/* Video Content */}
+                  {post.type === 'video' && post.mediaContent?.video?.videoId && (
+                    <ErrorBoundary fallback={<VideoErrorFallback />}>
+                      <VideoPlayer
+                        key={post.mediaContent.video.videoId}
+                        videoId={post.mediaContent.video.videoId}
+                        url={post.mediaContent.video.url}
+                        thumbnail={post.mediaContent.video.thumbnail}
+                        title={post.title}
+                        requiredTier={post.tier as MembershipTier}
+                        videoDuration={post.mediaContent.video.duration}
+                        setActiveTab={setActiveTab}
+                      />
+                    </ErrorBoundary>
+                  )}
+
+                  {/* Post Content */}
+                  {post.type !== 'video' && (
+                    <div className="p-4">
+                      {!hasAccess(post.tier) ? (
+                        <div className="bg-gray-50 p-6 rounded-lg text-center">
+                          <Lock className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+                          <p className="text-gray-600 mb-4">
+                            This content is available for {post.tier} members
+                          </p>
+                          <button
+                            onClick={() => setActiveTab('membership')}
+                            className="bg-yellow-400 text-black px-6 py-2 rounded-lg font-medium hover:bg-yellow-500"
+                          >
+                            Upgrade to {post.tier}
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <p className={`text-gray-800 ${!expandedPosts.has(post.id) && 'line-clamp-3'}`}>
+                            {postContent}
+                          </p>
+                          {postContent.length > 150 && (
+                            <button
+                              onClick={() => togglePostExpansion(post.id)}
+                              className="text-yellow-600 hover:text-yellow-700 text-sm mt-2 flex items-center gap-1"
+                            >
+                              {expandedPosts.has(post.id) ? (
+                                <>Show less <ChevronUp className="w-4 h-4" /></>
+                              ) : (
+                                <>Read more <ChevronDown className="w-4 h-4" /></>
+                              )}
+                            </button>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Post Actions */}
+                  <div className="px-4 py-3 border-t bg-gray-50 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <button 
+                        onClick={() => handleLike(post.id)}
+                        className={`flex items-center gap-1 ${
+                          likedPosts.has(post.id) ? 'text-yellow-500' : 'text-gray-600 hover:text-yellow-500'
+                        }`}
                       >
-                        Upgrade to {post.tier}
+                        <ThumbsUp className="w-5 h-5" />
+                        <span>{(post.likes || 0) + (likedPosts.has(post.id) ? 1 : 0)}</span>
+                      </button>
+                      <button 
+                        onClick={() => toggleComments(post.id)}
+                        className="flex items-center gap-1 text-gray-600 hover:text-yellow-500"
+                      >
+                        <MessageCircle className="w-5 h-5" />
+                        <span>{post.comments || 0}</span>
+                      </button>
+                      <button className="flex items-center gap-1 text-gray-600 hover:text-yellow-500">
+                        <Share2 className="w-5 h-5" />
                       </button>
                     </div>
-                  ) : (
-                    <>
-                      <p className={`text-gray-800 ${!expandedPosts.has(post.id) && 'line-clamp-3'}`}>
-                        {postContent}
-                      </p>
-                      {postContent.length > 150 && (
-                        <button
-                          onClick={() => togglePostExpansion(post.id)}
-                          className="text-yellow-600 hover:text-yellow-700 text-sm mt-2 flex items-center gap-1"
-                        >
-                          {expandedPosts.has(post.id) ? (
-                            <>Show less <ChevronUp className="w-4 h-4" /></>
-                          ) : (
-                            <>Read more <ChevronDown className="w-4 h-4" /></>
-                          )}
-                        </button>
-                      )}
-                    </>
+                    <div className="flex items-center gap-2">
+                      <button className="text-gray-600 hover:text-yellow-500">
+                        <Bookmark className="w-5 h-5" />
+                      </button>
+                      <button className="text-gray-600 hover:text-red-500">
+                        <Flag className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Comments Section */}
+                  {expandedComments.has(post.id) && (
+                    <ErrorBoundary fallback={<CommentsErrorFallback />}>
+                      <CommentSection postId={post.id} />
+                    </ErrorBoundary>
                   )}
-                </div>
-              )}
-
-              {/* Post Actions */}
-              <div className="px-4 py-3 border-t bg-gray-50 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <button 
-                    onClick={() => handleLike(post.id)}
-                    className={`flex items-center gap-1 ${
-                      likedPosts.has(post.id) ? 'text-yellow-500' : 'text-gray-600 hover:text-yellow-500'
-                    }`}
-                  >
-                    <ThumbsUp className="w-5 h-5" />
-                    <span>{(post.likes || 0) + (likedPosts.has(post.id) ? 1 : 0)}</span>
-                  </button>
-                  <button 
-                    onClick={() => toggleComments(post.id)}
-                    className="flex items-center gap-1 text-gray-600 hover:text-yellow-500"
-                  >
-                    <MessageCircle className="w-5 h-5" />
-                    <span>{post.comments || 0}</span>
-                  </button>
-                  <button className="flex items-center gap-1 text-gray-600 hover:text-yellow-500">
-                    <Share2 className="w-5 h-5" />
-                  </button>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button className="text-gray-600 hover:text-yellow-500">
-                    <Bookmark className="w-5 h-5" />
-                  </button>
-                  <button className="text-gray-600 hover:text-red-500">
-                    <Flag className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Comments Section */}
-              {expandedComments.has(post.id) && (
-                <CommentSection postId={post.id} />
-              )}
-            </article>
-          );
-        })}
+                </article>
+              );
+            })}
+          </div>
+        )}
       </div>
-    </div>
+    </ErrorBoundary>
   );
 }

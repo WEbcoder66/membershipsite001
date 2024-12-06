@@ -1,41 +1,41 @@
 // src/components/ErrorBoundary.tsx
 import React from 'react';
 
-interface Props {
+export interface ErrorBoundaryProps {
   children: React.ReactNode;
+  fallback: React.ReactNode;
 }
 
-interface State {
+interface ErrorBoundaryState {
   hasError: boolean;
+  error?: Error;
 }
 
-class ErrorBoundary extends React.Component<Props, State> {
-  constructor(props: Props) {
+export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
     super(props);
-    this.state = { hasError: false };
+    this.state = { 
+      hasError: false,
+      error: undefined 
+    };
   }
 
-  static getDerivedStateFromError() {
-    return { hasError: true };
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return {
+      hasError: true,
+      error
+    };
+  }
+
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error('Error caught in ErrorBoundary:', error, info);
   }
 
   render() {
     if (this.state.hasError) {
-      return (
-        <div className="text-center py-8">
-          <h2 className="text-xl font-bold mb-2">Something went wrong</h2>
-          <button
-            onClick={() => window.location.reload()}
-            className="text-yellow-600 hover:text-yellow-700"
-          >
-            Try again
-          </button>
-        </div>
-      );
+      return this.props.fallback;
     }
 
     return this.props.children;
   }
 }
-
-export default ErrorBoundary;
