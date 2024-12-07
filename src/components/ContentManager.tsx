@@ -1,167 +1,191 @@
+// src/components/ContentManager.tsx
 'use client';
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { Content } from '@/lib/types';
 import { 
+  Upload,
   Video, 
-  Image as ImageIcon, 
+  Image as ImageIcon,
   Edit2,
   Trash2,
   AlertCircle,
   Plus,
-  Loader2,
-  PlusCircle,
-  X,
   MessageSquare,
   Music,
-  FileText,
-  Upload
+  X,
+  PlusCircle,
+  Loader2
 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
-// Constants
-const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500MB
-const VALID_VIDEO_TYPES = ['video/mp4', 'video/webm', 'video/quicktime'];
-const VALID_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
-const VALID_AUDIO_TYPES = ['audio/mpeg', 'audio/wav', 'audio/mp3'];
-
-type UploadStatus = 'idle' | 'preparing' | 'uploading' | 'processing' | 'success' | 'error';
+interface Content {
+  id: string;
+  type: 'video' | 'gallery' | 'audio' | 'poll';
+  title: string;
+  description: string;
+  tier: 'basic' | 'premium' | 'allAccess';
+  createdAt: string;
+}
 
 export default function ContentManager() {
-  // State variables
-  const [activeTab, setActiveTab] = useState<'create' | 'manage'>('create');
+  const { user } = useAuth();
   const [contentType, setContentType] = useState<'video' | 'gallery' | 'audio' | 'poll'>('video');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [file, setFile] = useState<File | null>(null);
   const [membershipTier, setMembershipTier] = useState<'basic' | 'premium' | 'allAccess'>('basic');
-  const [error, setError] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [uploadedContent, setUploadedContent] = useState<Content[]>([]);
-  const [isLoadingContent, setIsLoadingContent] = useState(true);
-  const [pollOptions, setPollOptions] = useState(['', '']);
-  const [pollEndDate, setPollEndDate] = useState('');
-  const [uploadStatus, setUploadStatus] = useState<UploadStatus>('idle');
+  const [dragActive, setDragActive] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [content, setContent] = useState<Content[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [editingContent, setEditingContent] = useState<{
     id: string;
     title: string;
     description: string;
   } | null>(null);
-
+  const [pollOptions, setPollOptions] = useState<string[]>(['', '']);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { user } = useAuth();
 
-  // Load content effect
   useEffect(() => {
-    const loadContent = async () => {
-      try {
-        const response = await fetch('/api/content', {
-          headers: {
-            'Authorization': `Bearer ${user?.email}`
-          }
-        });
-        if (!response.ok) {
-          throw new Error('Failed to load content');
+    fetchContent();
+  }, [user?.email]);
+
+  const fetchContent = async () => {
+    try {
+      const response = await fetch('/api/content', {
+        headers: {
+          'Authorization': `Bearer ${user?.email}`
         }
-        const data = await response.json();
-        if (data.success && Array.isArray(data.data)) {
-          setUploadedContent(data.data);
-        }
-      } catch (err) {
-        console.error('Error loading content:', err);
-        setError('Failed to load content');
-      } finally {
-        setIsLoadingContent(false);
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch content');
       }
-    };
 
-    if (activeTab === 'manage') {
-      loadContent();
-    }
-  }, [activeTab, user?.email]);
-
-  // File validation
-  const validateFile = (file: File) => {
-    if (file.size > MAX_FILE_SIZE) {
-      throw new Error(`File size exceeds ${MAX_FILE_SIZE / (1024 * 1024)}MB limit`);
-    }
-
-    let validTypes: string[] = [];
-    switch (contentType) {
-      case 'video':
-        validTypes = VALID_VIDEO_TYPES;
-        break;
-      case 'gallery':
-        validTypes = VALID_IMAGE_TYPES;
-        break;
-      case 'audio':
-        validTypes = VALID_AUDIO_TYPES;
-        break;
-    }
-
-    if (validTypes.length && !validTypes.includes(file.type)) {
-      throw new Error(`Invalid file type. Accepted formats: ${validTypes.join(', ')}`);
+      const data = await response.json();
+      if (data.success && Array.isArray(data.data)) {
+        setContent(data.data);
+      }
+    } catch (err) {
+      console.error('Error fetching content:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load content');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // Form reset
-  const resetForm = () => {
-    setTitle('');
-    setDescription('');
-    setFile(null);
-    setMembershipTier('basic');
-    setError('');
-    setPollOptions(['', '']);
-    setPollEndDate('');
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      handleFileUpload(file);
+    }
+  };
+
+  const handleFileUpload = async (file: File) => {
+    if (!title || !description) {
+      setError('Please fill in all required fields');
+      return;
+    }
+
+    setIsUploading(true);
     setUploadProgress(0);
-    setUploadStatus('idle');
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
+    setError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('title', title);
+      formData.append('description', description);
+      formData.append('membershipTier', membershipTier);
+      formData.append('contentType', contentType);
+
+      const xhr = new XMLHttpRequest();
+      
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) {
+          const progress = (event.loaded / event.total) * 100;
+          setUploadProgress(Math.round(progress));
+        }
+      };
+
+      xhr.onload = () => {
+        if (xhr.status === 200) {
+          const response = JSON.parse(xhr.responseText);
+          setContent(prev => [...prev, response.data]);
+          resetForm();
+          alert('Content uploaded successfully!');
+        } else {
+          throw new Error('Upload failed');
+        }
+      };
+
+      xhr.onerror = () => {
+        throw new Error('Upload failed');
+      };
+
+      xhr.open('POST', '/api/content/upload');
+      xhr.setRequestHeader('Authorization', `Bearer ${user?.email}`);
+      xhr.send(formData);
+
+    } catch (error) {
+      console.error('Upload error:', error);
+      setError('Failed to upload content. Please try again.');
+    } finally {
+      setIsUploading(false);
     }
   };
 
-  // File selection handlers
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (selectedFile) {
-      setFile(selectedFile);
+    const file = e.target.files?.[0];
+    if (file) {
+      handleFileUpload(file);
     }
   };
 
-  // Delete handler
   const handleDelete = async (contentId: string) => {
     if (!confirm('Are you sure you want to delete this content?')) {
       return;
     }
 
     try {
-      setError('');
+      setError(null);
       const response = await fetch(`/api/content/${contentId}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${user?.email}`,
-          'Content-Type': 'application/json'
+          'Authorization': `Bearer ${user?.email}`
         }
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to delete content');
+        throw new Error('Failed to delete content');
       }
 
-      setUploadedContent(prev => prev.filter(content => content.id !== contentId));
-      
+      setContent(prev => prev.filter(item => item.id !== contentId));
+
     } catch (err) {
       console.error('Delete error:', err);
       setError(err instanceof Error ? err.message : 'Failed to delete content');
     }
   };
 
-  // Update handler
   const handleUpdate = async (contentId: string, updates: { title?: string; description?: string }) => {
     try {
-      setError('');
+      setError(null);
       const response = await fetch(`/api/content/${contentId}`, {
         method: 'PATCH',
         headers: {
@@ -172,20 +196,14 @@ export default function ContentManager() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to update content');
+        throw new Error('Failed to update content');
       }
 
-      const { data } = await response.json();
+      setContent(prev => prev.map(item => 
+        item.id === contentId ? { ...item, ...updates } : item
+      ));
       
-      // Update local content state
-      setUploadedContent(prev => 
-        prev.map(content => 
-          content.id === contentId ? { ...content, ...updates } : content
-        )
-      );
-      
-      setEditingContent(null); // Close edit mode
+      setEditingContent(null);
       
     } catch (err) {
       console.error('Update error:', err);
@@ -193,72 +211,83 @@ export default function ContentManager() {
     }
   };
 
-  // Create content handler
-  const handleCreateContent = async () => {
-    if (!title || !description) {
-      setError('Please fill in all required fields');
+  const resetForm = () => {
+    setTitle('');
+    setDescription('');
+    setUploadProgress(0);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+    setPollOptions(['', '']);
+    setError(null);
+  };
+
+  const addPollOption = () => {
+    setPollOptions([...pollOptions, '']);
+  };
+
+  const removePollOption = (index: number) => {
+    setPollOptions(pollOptions.filter((_, i) => i !== index));
+  };
+
+  const updatePollOption = (index: number, value: string) => {
+    const newOptions = [...pollOptions];
+    newOptions[index] = value;
+    setPollOptions(newOptions);
+  };
+
+  const handleCreatePoll = async () => {
+    if (!title || !description || pollOptions.filter(opt => opt.trim()).length < 2) {
+      setError('Please fill in all required fields and provide at least 2 poll options');
       return;
     }
 
-    setIsUploading(true);
-    setUploadStatus('preparing');
-    setUploadProgress(10);
-
     try {
-      const formData = new FormData();
-      if (file) {
-        validateFile(file);
-        formData.append('file', file);
-      }
-      formData.append('title', title);
-      formData.append('description', description);
-      formData.append('membershipTier', membershipTier);
-      formData.append('contentType', contentType);
+      setIsUploading(true);
+      setError(null);
 
-      const response = await fetch('/api/content/upload', {
+      const response = await fetch('/api/content', {
         method: 'POST',
         headers: {
+          'Content-Type': 'application/json',
           'Authorization': `Bearer ${user?.email}`
         },
-        body: formData
+        body: JSON.stringify({
+          type: 'poll',
+          title,
+          description,
+          tier: membershipTier,
+          mediaContent: {
+            poll: {
+              options: pollOptions.reduce((acc, opt) => ({ ...acc, [opt]: 0 }), {}),
+              endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+              multipleChoice: false
+            }
+          }
+        })
       });
 
       if (!response.ok) {
-        throw new Error('Upload failed');
+        throw new Error('Failed to create poll');
       }
 
-      setUploadProgress(100);
-      setUploadStatus('success');
-      alert('Content uploaded successfully!');
+      const data = await response.json();
+      setContent(prev => [...prev, data.data]);
       resetForm();
+      alert('Poll created successfully!');
 
-      // Refresh content list if on manage tab
-      if (activeTab === 'manage') {
-        const content = await fetch('/api/content').then(res => res.json());
-        if (content.success && Array.isArray(content.data)) {
-          setUploadedContent(content.data);
-        }
-      }
-
-    } catch (err) {
-      console.error('Upload error:', err);
-      setError(err instanceof Error ? err.message : 'Failed to upload content');
-      setUploadStatus('error');
+    } catch (error) {
+      console.error('Poll creation error:', error);
+      setError('Failed to create poll. Please try again.');
     } finally {
       setIsUploading(false);
     }
   };
 
-  if (isLoadingContent && activeTab === 'manage') {
-    return (
-      <div className="flex justify-center py-8">
-        <Loader2 className="w-8 h-8 animate-spin text-yellow-400" />
-      </div>
-    );
-  }
-
   return (
-    <div className="max-w-4xl mx-auto px-4">
+    <div className="bg-white rounded-lg shadow-lg p-6">
+      <h2 className="text-xl font-bold text-gray-900 mb-6">Create New Content</h2>
+
       {error && (
         <Alert variant="destructive" className="mb-6">
           <AlertCircle className="h-4 w-4" />
@@ -266,224 +295,271 @@ export default function ContentManager() {
         </Alert>
       )}
 
-      {/* Content Form */}
-      <div className="bg-white rounded-lg shadow-lg p-6">
-        {/* Tab Navigation */}
-        <div className="flex gap-4 mb-6">
-          <button
-            onClick={() => setActiveTab('create')}
-            className={`py-2 px-4 rounded-lg font-medium ${
-              activeTab === 'create' ? 'bg-yellow-400 text-black' : 'text-gray-600 hover:bg-gray-100'
-            }`}
-          >
-            Create Content
-          </button>
-          <button
-            onClick={() => setActiveTab('manage')}
-            className={`py-2 px-4 rounded-lg font-medium ${
-              activeTab === 'manage' ? 'bg-yellow-400 text-black' : 'text-gray-600 hover:bg-gray-100'
-            }`}
-          >
-            Manage Content
-          </button>
+      {/* Content Type Selection */}
+      <div className="mb-6">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Content Type
+        </label>
+        <div className="grid grid-cols-4 gap-4">
+          {[
+            { type: 'video', icon: Video, label: 'Video' },
+            { type: 'gallery', icon: ImageIcon, label: 'Gallery' },
+            { type: 'audio', icon: Music, label: 'Audio' },
+            { type: 'poll', icon: MessageSquare, label: 'Poll' }
+          ].map(({ type, icon: Icon, label }) => (
+            <button
+              key={type}
+              onClick={() => setContentType(type as any)}
+              className={`p-4 rounded-lg border-2 flex flex-col items-center gap-2 transition-colors ${
+                contentType === type
+                  ? 'border-yellow-400 bg-yellow-50'
+                  : 'border-gray-200 hover:border-yellow-200'
+              }`}
+            >
+              <Icon className={`w-6 h-6 ${
+                contentType === type ? 'text-yellow-500' : 'text-gray-400'
+              }`} />
+              <span className={`font-medium ${
+                contentType === type ? 'text-gray-900' : 'text-gray-600'
+              }`}>{label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Title & Description */}
+      <div className="space-y-4 mb-6">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Title
+          </label>
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400"
+            placeholder="Enter content title..."
+          />
         </div>
 
-        {activeTab === 'create' ? (
-          <form onSubmit={(e) => { e.preventDefault(); handleCreateContent(); }} className="space-y-6">
-            {/* Content Type Selection */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Content Type
-              </label>
-              <div className="grid grid-cols-4 gap-4">
-                {[
-                  { type: 'video', icon: Video, label: 'Video' },
-                  { type: 'gallery', icon: ImageIcon, label: 'Gallery' },
-                  { type: 'audio', icon: Music, label: 'Audio' },
-                  { type: 'poll', icon: MessageSquare, label: 'Poll' }
-                ].map(({ type, icon: Icon, label }) => (
-                  <button
-                    key={type}
-                    type="button"
-                    onClick={() => setContentType(type as any)}
-                    className={`p-4 rounded-lg border-2 flex flex-col items-center gap-2 ${
-                      contentType === type
-                        ? 'border-yellow-400 bg-yellow-50'
-                        : 'border-gray-200 hover:border-yellow-200'
-                    }`}
-                  >
-                    <Icon className="w-6 h-6" />
-                    <span>{label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Description
+          </label>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={4}
+            className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400"
+            placeholder="Enter content description..."
+          />
+        </div>
+      </div>
 
-            {/* Title & Description */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Title
-              </label>
+      {/* File Upload or Poll Options */}
+      {contentType === 'poll' ? (
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Poll Options
+          </label>
+          {pollOptions.map((option, index) => (
+            <div key={index} className="flex gap-2 mb-2">
               <input
                 type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400"
-                required
+                value={option}
+                onChange={(e) => updatePollOption(index, e.target.value)}
+                className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400"
+                placeholder={`Option ${index + 1}`}
               />
+              {index >= 2 && (
+                <button
+                  onClick={() => removePollOption(index)}
+                  className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              )}
             </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Description
-              </label>
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={4}
-                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400"
-                required
-              />
-            </div>
-
-            {/* File Upload */}
-            {contentType !== 'poll' && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Upload File
-                </label>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  onChange={handleFileSelect}
-                  className="w-full"
-                  accept={
-                    contentType === 'video' ? 'video/*' :
-                    contentType === 'gallery' ? 'image/*' :
-                    contentType === 'audio' ? 'audio/*' : undefined
-                  }
-                />
+          ))}
+          <button
+            onClick={addPollOption}
+            className="mt-2 flex items-center gap-2 text-yellow-600 hover:text-yellow-700"
+          >
+            <PlusCircle className="w-4 h-4" />
+            Add Option
+          </button>
+        </div>
+      ) : (
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Upload Content
+          </label>
+          <div
+            className={`border-2 border-dashed rounded-lg p-8 transition-colors ${
+              dragActive ? 'border-yellow-400 bg-yellow-50' : 'border-gray-300'
+            }`}
+            onDragEnter={handleDrag}
+            onDragLeave={handleDrag}
+            onDragOver={handleDrag}
+            onDrop={handleDrop}
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              onChange={handleFileSelect}
+              className="hidden"
+              accept={
+                contentType === 'video' ? 'video/*' :
+                contentType === 'gallery' ? 'image/*' :
+                contentType === 'audio' ? 'audio/*' : undefined
+              }
+            />
+            
+            {isUploading ? (
+              <div className="flex flex-col items-center">
+                <Loader2 className="w-8 h-8 animate-spin text-yellow-400 mb-4" />
+                <div className="w-full max-w-xs bg-gray-200 rounded-full h-2 mb-2">
+                  <div 
+                    className="bg-yellow-400 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${uploadProgress}%` }}
+                  />
+                </div>
+                <p className="text-gray-600">Uploading... {uploadProgress}%</p>
               </div>
-            )}
-
-            {/* Membership Tier */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Required Membership Tier
-              </label>
-              <select
-                value={membershipTier}
-                onChange={(e) => setMembershipTier(e.target.value as any)}
-                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400"
-              >
-                <option value="basic">Basic</option>
-                <option value="premium">Premium</option>
-                <option value="allAccess">All Access</option>
-              </select>
-            </div>
-
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={isUploading}
-              className={`w-full bg-yellow-400 text-black py-3 rounded-lg font-medium 
-                hover:bg-yellow-500 transition-colors
-                ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
-            >
-              {isUploading ? 'Uploading...' : 'Create Content'}
-            </button>
-          </form>
-        ) : (
-          // Manage Content View
-          <div className="space-y-4">
-            {uploadedContent.map((content) => (
-              <div key={content.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                {editingContent?.id === content.id ? (
-                  <div className="flex-1 space-y-2">
-                    <input
-                      type="text"
-                      value={editingContent.title}
-                      onChange={(e) => setEditingContent({
-                        ...editingContent,
-                        title: e.target.value
-                      })}
-                      className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-yellow-400"
-                    />
-                    <textarea
-                      value={editingContent.description}
-                      onChange={(e) => setEditingContent({
-                        ...editingContent,
-                        description: e.target.value
-                      })}
-                      className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-yellow-400"
-                      rows={2}
-                    />
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handleUpdate(content.id, {
-                          title: editingContent.title,
-                          description: editingContent.description
-                        })}
-                        className="px-3 py-1 bg-yellow-400 text-black rounded-md hover:bg-yellow-500"
-                      >
-                        Save
-                      </button>
-                      <button
-                        onClick={() => setEditingContent(null)}
-                        className="px-3 py-1 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <div className="flex-1">
-                      <h3 className="font-medium text-gray-900">{content.title}</h3>
-                      <p className="text-sm text-gray-600 mt-1">{content.description}</p>
-                      <div className="flex gap-2 mt-2">
-                        <span className={`text-xs px-2 py-1 rounded-full ${
-                          content.tier === 'premium' ? 'bg-yellow-100 text-yellow-800' :
-                          content.tier === 'allAccess' ? 'bg-yellow-200 text-yellow-900' :
-                          'bg-gray-100 text-gray-800'
-                        }`}>
-                          {content.tier}
-                        </span>
-                        <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-800">
-                          {content.type}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <button 
-                        onClick={() => setEditingContent({
-                          id: content.id,
-                          title: content.title,
-                          description: content.description || ''
-                        })}
-                        className="p-2 hover:bg-gray-100 rounded text-gray-600"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(content.id)}
-                        className="p-2 hover:bg-gray-100 rounded text-red-600"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
-            ))}
-            {uploadedContent.length === 0 && (
-              <div className="text-center py-8 text-gray-600">
-                No content found. Create some content to get started.
+            ) : (
+              <div className="text-center">
+                <Upload className="w-8 h-8 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-600 mb-4">
+                  Drag and drop your file here, or click to browse
+                </p>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="bg-yellow-400 text-black px-6 py-2 rounded-lg font-medium hover:bg-yellow-500"
+                >Select File
+                </button>
               </div>
             )}
           </div>
-        )}
+        </div>
+      )}
+
+      {/* Membership Tier */}
+      <div className="mb-6">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Required Membership
+        </label>
+        <select
+          value={membershipTier}
+          onChange={(e) => setMembershipTier(e.target.value as any)}
+          className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400"
+        >
+          <option value="basic">Basic</option>
+          <option value="premium">Premium</option>
+          <option value="allAccess">All Access</option>
+        </select>
       </div>
+
+      {/* Submit Button */}
+      <button
+        onClick={contentType === 'poll' ? handleCreatePoll : () => fileInputRef.current?.click()}
+        disabled={isUploading || !title || !description || 
+          (contentType === 'poll' && pollOptions.filter(opt => opt.trim()).length < 2)}
+        className={`w-full bg-yellow-400 text-black py-3 rounded-lg font-medium 
+          hover:bg-yellow-500 transition-colors
+          ${(isUploading || !title || !description || 
+            (contentType === 'poll' && pollOptions.filter(opt => opt.trim()).length < 2)) 
+            ? 'opacity-50 cursor-not-allowed' : ''}`}
+      >
+        {isUploading ? 'Uploading...' : contentType === 'poll' ? 'Create Poll' : 'Create Content'}
+      </button>
+
+      {/* Content List */}
+      {content.length > 0 && (
+        <div className="mt-8">
+          <h3 className="text-lg font-medium text-gray-900 mb-4">Existing Content</h3>
+          <div className="space-y-4">
+            {content.map((item) => (
+              <div
+                key={item.id}
+                className="flex items-center justify-between p-4 bg-gray-50 rounded-lg"
+              >
+                <div className="flex-1">
+                  {editingContent?.id === item.id ? (
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        value={editingContent.title}
+                        onChange={(e) => setEditingContent({
+                          ...editingContent,
+                          title: e.target.value
+                        })}
+                        className="w-full px-3 py-1 border rounded focus:ring-2 focus:ring-yellow-400"
+                      />
+                      <textarea
+                        value={editingContent.description}
+                        onChange={(e) => setEditingContent({
+                          ...editingContent,
+                          description: e.target.value
+                        })}
+                        className="w-full px-3 py-1 border rounded focus:ring-2 focus:ring-yellow-400"
+                        rows={2}
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleUpdate(item.id, {
+                            title: editingContent.title,
+                            description: editingContent.description
+                          })}
+                          className="px-3 py-1 bg-yellow-400 text-black rounded hover:bg-yellow-500"
+                        >
+                          Save
+                        </button>
+                        <button
+                          onClick={() => setEditingContent(null)}
+                          className="px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <h4 className="font-medium text-gray-900">{item.title}</h4>
+                      <p className="text-sm text-gray-600">{item.description}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-xs px-2 py-1 rounded-full bg-gray-200 text-gray-700">
+                          {item.type}
+                        </span>
+                        <span className="text-xs px-2 py-1 rounded-full bg-yellow-100 text-yellow-800">
+                          {item.tier}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 ml-4">
+                  <button
+                    onClick={() => setEditingContent(editingContent?.id === item.id ? null : {
+                      id: item.id,
+                      title: item.title,
+                      description: item.description || ''
+                    })}
+                    className="p-2 text-gray-600 hover:text-yellow-600 rounded-lg"
+                  >
+                    <Edit2 className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(item.id)}
+                    className="p-2 text-gray-600 hover:text-red-600 rounded-lg"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
