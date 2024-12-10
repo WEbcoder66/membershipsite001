@@ -75,7 +75,7 @@ export default function AdminDashboard() {
     if (isManaging) {
       fetchContent();
     }
-  }, [isManaging, fetchContent]);
+  }, [isManaging, fetchContent]); // Added fetchContent to dependencies
 
   // Handle content deletion
   const handleDeleteContent = async (contentId: string) => {
@@ -105,7 +105,7 @@ export default function AdminDashboard() {
     }
   };
 
-  // Updated stats data
+  // Stats data (for demo)
   const statsData = {
     contents: {
       total: managedContent.length || 0,
