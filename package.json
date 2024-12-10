@@ -10,6 +10,8 @@
     "clean": "rm -rf .next node_modules && npm install"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.705.0",
+    "@aws-sdk/s3-request-presigner": "^3.705.0",
     "@headlessui/react": "^2.2.0",
     "@radix-ui/react-alert-dialog": "^1.0.5",
     "@types/nodemailer": "^6.4.17",

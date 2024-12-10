@@ -100,7 +100,7 @@ export default function ContentManager() {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
-    
+
     const file = e.dataTransfer.files?.[0];
     if (file) {
       await handleUpload(file);
@@ -114,38 +114,7 @@ export default function ContentManager() {
     }
   };
 
-  async function uploadFileInChunks(file: File, guid: string, userEmail: string) {
-    const chunkSize = 5 * 1024 * 1024; // 5MB per chunk
-    let start = 0;
-    let chunkIndex = 0;
-
-    while (start < file.size) {
-      const end = Math.min(start + chunkSize, file.size);
-      const chunk = file.slice(start, end);
-      const isLastChunk = end >= file.size;
-
-      const formData = new FormData();
-      formData.append('file', chunk);
-      formData.append('guid', guid);
-      formData.append('chunkIndex', String(chunkIndex));
-      formData.append('isLastChunk', String(isLastChunk));
-
-      const res = await fetch('/api/videos/upload-proxy', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${userEmail}` },
-        body: formData
-      });
-
-      if (!res.ok) {
-        throw new Error(`Failed to upload chunk ${chunkIndex}`);
-      }
-
-      chunkIndex++;
-      start = end;
-    }
-  }
-
-  const handleUpload = async (file: File) => {
+  async function handleUpload(file: File) {
     if (!user?.email) {
       setError('No user email found');
       return;
@@ -165,27 +134,38 @@ export default function ContentManager() {
       setIsUploading(true);
       setError(null);
 
-      // 1. Create a video session to get a guid
-      const sessionRes = await fetch('/api/videos/create-session', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${user.email}`
-        },
-        body: JSON.stringify({ title })
-      });
+      // Get a pre-signed URL from DO Spaces
+      const fileName = `${Date.now()}-${file.name}`;
+      const fileType = file.type;
 
-      const sessionData = await sessionRes.json();
-      if (!sessionRes.ok || !sessionData.guid) {
-        throw new Error(sessionData.error || 'Failed to create upload session');
+      const presignRes = await fetch('/api/videos/get-presigned-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileName, fileType })
+      });
+      const { url } = await presignRes.json();
+
+      if (!presignRes.ok || !url) {
+        throw new Error('Failed to get pre-signed URL');
       }
 
-      const { guid } = sessionData;
+      // Upload the file directly to DigitalOcean Spaces using the pre-signed URL
+      const uploadRes = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': fileType },
+        body: file
+      });
 
-      // 2. Upload the file in chunks
-      await uploadFileInChunks(file, guid, user.email);
+      if (!uploadRes.ok) {
+        throw new Error('Upload to Spaces failed');
+      }
 
-      // 3. After all chunks uploaded, store metadata in /api/content
+      // Construct the file URL for metadata storage
+      const bucketName = 'my-site-uploads'; // Replace with your actual bucket name
+      const region = process.env.NEXT_PUBLIC_DO_REGION || 'nyc3';
+      const fileUrl = `https://${bucketName}.${region}.digitaloceanspaces.com/${fileName}`;
+
+      // After successful upload, store metadata in /api/content
       const contentRes = await fetch('/api/content', {
         method: 'POST',
         headers: {
@@ -198,7 +178,7 @@ export default function ContentManager() {
           description,
           tier: membershipTier,
           mediaContent: {
-            video: { videoId: guid }
+            video: { videoId: fileUrl } // store DO file URL as videoId
           }
         })
       });
@@ -211,14 +191,14 @@ export default function ContentManager() {
       alert('Content uploaded and saved successfully!');
       resetForm();
       fetchContent();
-      
+
     } catch (err: any) {
       console.error('Upload error:', err);
       setError(err.message || 'Failed to upload content. Please try again.');
     } finally {
       setIsUploading(false);
     }
-  };
+  }
 
   const resetForm = () => {
     setTitle('');
