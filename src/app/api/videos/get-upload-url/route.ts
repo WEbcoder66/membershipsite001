@@ -13,7 +13,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // Parse request body
+    // Parse request body to get the title
     const { title } = await req.json();
     if (!title) {
       return NextResponse.json(
@@ -22,14 +22,15 @@ export async function POST(req: Request) {
       );
     }
 
-    console.log('Getting upload URL for video:', { title });
+    console.log('Creating video on Bunny.net:', { title });
+    // Create the video in Bunny.net to get its GUID
+    const { guid } = await bunnyVideo.createVideo(title);
 
-    // Get upload URL from Bunny.net
-    const { id: videoId, uploadUrl } = await bunnyVideo.getUploadUrl(title);
+    // Construct the upload URL using the returned GUID
+    // This is the URL you will PUT your video file data to
+    const uploadUrl = `https://video.bunnycdn.com/library/${process.env.BUNNY_LIBRARY_ID}/videos/${guid}`;
 
-    // Return the upload URL and videoId
-    return NextResponse.json({ uploadUrl, videoId });
-
+    return NextResponse.json({ uploadUrl, videoId: guid });
   } catch (error) {
     console.error('Error getting upload URL:', error);
     return NextResponse.json(
