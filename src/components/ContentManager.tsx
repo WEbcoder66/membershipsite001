@@ -8,17 +8,14 @@ import {
   Image as ImageIcon,
   Edit2,
   Trash2,
-  AlertCircle,
-  Plus,
-  MessageSquare,
-  Music,
   X,
   PlusCircle,
-  Loader2
+  Loader2,
+  MessageSquare,
+  Music
 } from 'lucide-react';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Alert } from '@/components/ui/alert';
 
-// Define the Content interface so we can type our responses
 interface Content {
   id: string;
   title: string;
@@ -82,7 +79,6 @@ export default function ContentManager() {
 
       const data = await response.json() as { success: boolean; data: Content[] };
       if (data.success && Array.isArray(data.data)) {
-        // Typed item as Content
         setContent(data.data.filter((item: Content) => item && item.title));
       } else {
         throw new Error('Invalid content data structure');
@@ -170,34 +166,6 @@ export default function ContentManager() {
     const file = e.target.files?.[0];
     if (file) {
       handleFileUpload(file);
-    }
-  };
-
-  const handleDelete = async (contentId: string) => {
-    if (!contentId) return;
-
-    if (!window.confirm('Are you sure you want to delete this content?')) {
-      return;
-    }
-
-    try {
-      setError(null);
-      const response = await fetch(`/api/content/${contentId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${user?.email}`
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to delete content');
-      }
-
-      setContent(prev => prev.filter(item => item && item.id !== contentId));
-
-    } catch (err) {
-      console.error('Delete error:', err);
-      setError(err instanceof Error ? err.message : 'Failed to delete content');
     }
   };
 
@@ -318,12 +286,13 @@ export default function ContentManager() {
 
   return (
     <div className="bg-white rounded-lg shadow-lg p-6">
-      {error ? (
+      {error && (
         <div className="p-4 bg-red-50 text-red-700 rounded-lg">
           <p>Error loading content manager. Please try refreshing the page.</p>
           <p className="text-sm mt-2">{error}</p>
         </div>
-      ) : (
+      )}
+      {!error && (
         <>
           <h2 className="text-xl font-bold mb-6">Create New Content</h2>
 
@@ -370,7 +339,7 @@ export default function ContentManager() {
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400"
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400 text-black"
                 placeholder="Enter content title..."
                 required
               />
@@ -385,7 +354,7 @@ export default function ContentManager() {
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 rows={4}
-                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400"
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400 text-black"
                 placeholder="Enter content description..."
                 required
               />
@@ -399,7 +368,7 @@ export default function ContentManager() {
               <select
                 value={membershipTier}
                 onChange={(e) => setMembershipTier(e.target.value as any)}
-                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400"
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400 text-black"
               >
                 <option value="basic">Basic</option>
                 <option value="premium">Premium</option>
@@ -416,7 +385,7 @@ export default function ContentManager() {
                       type="text"
                       value={option}
                       onChange={(e) => updatePollOption(index, e.target.value)}
-                      className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400"
+                      className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400 text-black"
                       placeholder={`Option ${index + 1}`}
                     />
                     {index >= 2 && (
@@ -471,7 +440,7 @@ export default function ContentManager() {
                     </p>
                     <button
                       onClick={() => fileInputRef.current?.click()}
-                      className="bg-yellow-400 px-4 py-2 rounded-lg font-medium hover:bg-yellow-500"
+                      className="bg-yellow-400 px-4 py-2 rounded-lg font-medium hover:bg-yellow-500 text-black"
                     >
                       Select File
                     </button>
@@ -498,8 +467,10 @@ export default function ContentManager() {
                 <div key={item.id} className="p-4 bg-gray-50 rounded-lg">
                   <div className="flex justify-between items-start">
                     <div>
-                      <h4 className="font-medium">{item.title}</h4>
-                      <p className="text-sm text-gray-600">{item.description}</p>
+                      <h4 className="font-medium text-black">{item.title}</h4>
+                      {item.description && (
+                        <p className="text-sm text-gray-600">{item.description}</p>
+                      )}
                       <div className="flex gap-2 mt-2">
                         <span className={`text-xs px-2 py-1 rounded-full ${
                           item.tier === 'premium' ? 'bg-yellow-100 text-yellow-800' :
@@ -524,12 +495,7 @@ export default function ContentManager() {
                       >
                         <Edit2 className="w-4 h-4" />
                       </button>
-                      <button
-                        onClick={() => handleDelete(item.id)}
-                        className="p-2 hover:bg-gray-100 rounded text-red-600"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      {/* Delete button handled in admin panel */}
                     </div>
                   </div>
                 </div>

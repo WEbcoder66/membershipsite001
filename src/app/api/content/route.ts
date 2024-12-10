@@ -4,8 +4,8 @@ import { headers } from 'next/headers';
 import dbConnect from '@/lib/mongodb';
 import { bunnyVideo } from '@/lib/bunnyService';
 import Content from '@/models/Content';
+import { validateAdmin } from '@/lib/auth';
 
-// Set runtime configuration
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
@@ -23,7 +23,6 @@ export async function GET(req: Request) {
     
     console.log('Fetching content with params:', { page, limit, tier, type, searchQuery });
 
-    // Build query based on parameters
     const query: any = {};
     if (tier) query.tier = tier;
     if (type) query.type = type;
@@ -34,7 +33,6 @@ export async function GET(req: Request) {
       ];
     }
 
-    // Execute query with pagination
     const skip = (page - 1) * limit;
     console.log('Executing MongoDB query:', { query, skip, limit });
 
@@ -47,21 +45,14 @@ export async function GET(req: Request) {
       Content.countDocuments(query)
     ]);
 
-     // Add the debug log right here, after fetching content
-    console.log('Raw content from DB:', JSON.stringify(content[0], null, 2));
-
-   console.log(`Found ${content.length} items out of ${total} total`);
+    console.log(`Found ${content.length} items out of ${total} total`);
 
     // Generate secure URLs for content with videos
     const contentWithUrls = await Promise.all(content.map(async (item) => {
       if (item.mediaContent?.video?.videoId) {
         try {
           console.log('Processing video with ID:', item.mediaContent.video.videoId);
-          
-          // We will now use the embed URL instead of direct video URL
           const embedUrl = `https://iframe.mediadelivery.net/embed/${process.env.NEXT_PUBLIC_BUNNY_LIBRARY_ID}/${item.mediaContent.video.videoId}`;
-          
-          // Still generate a thumbnail URL with security token
           const thumbnailUrl = await bunnyVideo.getVideoUrl(item.mediaContent.video.videoId, 'thumbnail');
           
           return {
@@ -120,7 +111,6 @@ export async function POST(req: Request) {
 
     const { type, title, description, tier, mediaContent } = await req.json();
     
-    // Check for required fields
     if (!type || !title || !tier) {
       return NextResponse.json(
         { error: 'Missing required fields' },
@@ -128,7 +118,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // Handle video content specially
     const videoId = mediaContent?.video?.videoId;
     let processedMediaContent = mediaContent;
     
@@ -150,7 +139,6 @@ export async function POST(req: Request) {
       }
     }
 
-    // Create content
     const content = await Content.create({
       type,
       title,
@@ -202,10 +190,8 @@ export async function PUT(req: Request) {
       );
     }
 
-    // Add updatedAt timestamp
     updates.updatedAt = new Date();
 
-    // Handle video URL updates if necessary
     if (updates.mediaContent?.video?.videoId) {
       const videoId = updates.mediaContent.video.videoId;
       updates.mediaContent.video.url = `https://iframe.mediadelivery.net/embed/${process.env.NEXT_PUBLIC_BUNNY_LIBRARY_ID}/${videoId}`;
@@ -246,15 +232,18 @@ export async function PUT(req: Request) {
 export async function DELETE(req: Request) {
   try {
     await dbConnect();
-    
-    // Verify authorization
-    const headersList = headers();
-    const authHeader = headersList.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    // Validate admin access
+    const validation = await validateAdmin();
+    if (!validation.isValid) {
+      return NextResponse.json(
+        { error: validation.message || 'Unauthorized' },
+        { status: 401 }
+      );
     }
 
-    const { id } = await req.json();
+    const url = new URL(req.url);
+    const id = url.searchParams.get('id');
     
     if (!id) {
       return NextResponse.json(
@@ -263,7 +252,6 @@ export async function DELETE(req: Request) {
       );
     }
 
-    // Get content before deletion to check for video
     const content = await Content.findById(id);
     
     if (!content) {
@@ -273,7 +261,7 @@ export async function DELETE(req: Request) {
       );
     }
 
-    // If content has video, delete from Bunny.net
+    // If content has video, delete from Bunny if needed
     if (content.mediaContent?.video?.videoId) {
       try {
         await bunnyVideo.deleteVideo(content.mediaContent.video.videoId);
@@ -284,7 +272,6 @@ export async function DELETE(req: Request) {
       }
     }
 
-    // Delete the content from database
     await Content.findByIdAndDelete(id);
 
     return NextResponse.json({

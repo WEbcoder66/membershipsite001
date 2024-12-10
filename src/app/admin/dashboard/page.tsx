@@ -21,7 +21,7 @@ import {
 interface Content {
   id: string;
   title: string;
-  description: string;
+  description?: string;
   type: 'video' | 'gallery' | 'audio' | 'poll';
   tier: 'basic' | 'premium' | 'allAccess';
   createdAt: string;
@@ -75,9 +75,9 @@ export default function AdminDashboard() {
     if (isManaging) {
       fetchContent();
     }
-  }, [isManaging, fetchContent]); // Added fetchContent to dependencies
+  }, [isManaging, fetchContent]);
 
-  // Handle content deletion
+  // Handle content deletion (use query param instead of body)
   const handleDeleteContent = async (contentId: string) => {
     if (!window.confirm('Are you sure you want to delete this content?')) {
       return;
@@ -85,13 +85,11 @@ export default function AdminDashboard() {
 
     try {
       setError(null);
-      const response = await fetch('/api/content', {
+      const response = await fetch(`/api/content?id=${contentId}`, {
         method: 'DELETE',
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': `Bearer ${user?.email}`
-        },
-        body: JSON.stringify({ id: contentId })
+        }
       });
 
       if (!response.ok) {
@@ -105,7 +103,7 @@ export default function AdminDashboard() {
     }
   };
 
-  // Stats data (for demo)
+  // Stats data (demo)
   const statsData = {
     contents: {
       total: managedContent.length || 0,
@@ -286,7 +284,9 @@ export default function AdminDashboard() {
                       >
                         <div className="flex-1">
                           <h3 className="font-medium text-gray-900">{content.title}</h3>
-                          <p className="text-sm text-gray-600 mt-1">{content.description}</p>
+                          {content.description && (
+                            <p className="text-sm text-gray-600 mt-1">{content.description}</p>
+                          )}
                           <div className="flex gap-2 mt-2">
                             <span className={`text-xs px-2 py-1 rounded-full ${
                               content.tier === 'premium' ? 'bg-yellow-100 text-yellow-800' :
