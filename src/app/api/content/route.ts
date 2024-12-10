@@ -1,13 +1,40 @@
 import { NextResponse } from 'next/server';
 import { validateAdmin } from '@/lib/auth';
 import dbConnect from '@/lib/mongodb';
-import Content from '@/models/Content'; 
+import Content from '@/models/Content';
+import mongoose from 'mongoose';
+
+interface ILeanContent {
+  _id: mongoose.Types.ObjectId;
+  type: 'video' | 'gallery' | 'audio' | 'post';
+  title: string;
+  description?: string;
+  createdAt: Date;
+  updatedAt: Date;
+  tier: 'basic' | 'premium' | 'allAccess';
+  isLocked: boolean;
+  mediaContent?: Record<string, any>;
+  likes: number;
+  comments: number;
+  views: number;
+}
 
 export async function GET() {
   try {
     await dbConnect();
-    const allContent = await Content.find().sort({ createdAt: -1 }).lean();
-    return NextResponse.json({ success: true, data: allContent }, { status: 200 });
+    const rawResult = await Content.find({})
+      .sort({ createdAt: -1 })
+      .lean();
+
+    // Double assertion: we trust our schema ensures the fields match ILeanContent
+    const allContent = rawResult as unknown as ILeanContent[];
+
+    const formattedContent = allContent.map(item => ({
+      ...item,
+      id: item._id.toString()
+    }));
+
+    return NextResponse.json({ success: true, data: formattedContent }, { status: 200 });
   } catch (error) {
     console.error('Content API GET Error:', error);
     return NextResponse.json({ error: 'Failed to fetch content' }, { status: 500 });

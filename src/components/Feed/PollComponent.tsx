@@ -47,6 +47,8 @@ export default function PollComponent({
   // Check if poll has ended
   const hasEnded = endDate ? new Date(endDate) < new Date() : false;
 
+  const voteOptions = Object.entries(votes);
+
   return (
     <div className="bg-white rounded-lg shadow-sm p-6">
       {hasEnded && (
@@ -55,44 +57,47 @@ export default function PollComponent({
         </div>
       )}
 
-      <div className="space-y-3">
-        {Object.entries(votes).map(([option, voteCount]) => {
-          const percentage = calculatePercentage(voteCount);
-          const isSelected = option === selectedOption;
-
-          return (
-            <div key={option} className="relative">
-              <button
-                onClick={() => handleVote(option)}
-                disabled={hasVoted || hasEnded || !user}
-                className={`w-full text-left p-4 rounded-lg relative overflow-hidden transition-all ${
-                  isSelected 
-                    ? 'bg-yellow-50 border-2 border-yellow-400' 
-                    : 'bg-gray-50 hover:bg-gray-100'
-                } ${hasVoted || hasEnded ? 'cursor-default' : 'cursor-pointer'}`}
-              >
-                {/* Progress Bar Background */}
-                {(hasVoted || hasEnded) && (
-                  <div
-                    className="absolute inset-0 bg-yellow-100 transition-all duration-500"
-                    style={{ width: `${percentage}%` }}
-                  />
-                )}
-                
-                {/* Option Content */}
-                <div className="relative flex justify-between items-center z-10">
-                  <span className="font-medium text-gray-900">{option}</span>
+      {voteOptions.length === 0 ? (
+        <div className="text-sm text-gray-600">No poll options available.</div>
+      ) : (
+        <div className="space-y-3">
+          {voteOptions.map(([option, voteCount]) => {
+            const percentage = calculatePercentage(voteCount);
+            const isSelected = option === selectedOption;
+  
+            return (
+              <div key={option} className="relative">
+                <button
+                  onClick={() => handleVote(option)}
+                  disabled={hasVoted || hasEnded || !user}
+                  className={`w-full text-left p-4 rounded-lg relative overflow-hidden transition-all ${
+                    isSelected 
+                      ? 'bg-yellow-50 border-2 border-yellow-400' 
+                      : 'bg-gray-50 hover:bg-gray-100'
+                  } ${hasVoted || hasEnded ? 'cursor-default' : 'cursor-pointer'}`}
+                >
                   {(hasVoted || hasEnded) && (
-                    <span className="text-sm font-medium text-gray-900">
-                      {percentage}% ({voteCount} votes)
-                    </span>
-                  )}
-                </div>
-              </button>
-            </div>
-          );
-        })}
-      </div>
+                    <div
+                      className="absolute inset-0 bg-yellow-100 transition-all duration-500"
+                      style={{ width: `${percentage}%` }}
+                    />
+                  )
+                  }
+
+                  <div className="relative flex justify-between items-center z-10">
+                    <span className="font-medium text-gray-900">{option}</span>
+                    {(hasVoted || hasEnded) && (
+                      <span className="text-sm font-medium text-gray-900">
+                        {percentage}% ({voteCount} votes)
+                      </span>
+                    )}
+                  </div>
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Poll Footer */}
       <div className="mt-4 flex items-center justify-between text-sm text-gray-600">
