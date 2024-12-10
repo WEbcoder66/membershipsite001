@@ -19,14 +19,15 @@ export async function POST(req: Request) {
         accessKeyId: process.env.DO_ACCESS_KEY_ID!,
         secretAccessKey: process.env.DO_SECRET_ACCESS_KEY!
       },
-      endpoint, 
+      endpoint,
       forcePathStyle: false
     });
 
     const command = new PutObjectCommand({
       Bucket: bucketName,
       Key: fileName,
-      ContentType: fileType
+      ContentType: fileType,
+      ACL: 'public-read' // Add this line to make the file publicly accessible
     });
 
     const signedUrl = await getSignedUrl(s3, command, { expiresIn: 3600 }); // URL valid for 1 hour
