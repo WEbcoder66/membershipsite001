@@ -16,7 +16,6 @@ import {
 import { Post, MembershipTier } from '@/lib/types';
 import { formatDate, formatNumber } from '@/lib/utils';
 import VideoPlayer from '@/components/VideoPlayer';
-import ImageGallery from './ImageGallery';
 import AudioPlayer from './AudioPlayer';
 import PollComponent from './PollComponent';
 import PaymentButton from '@/components/PaymentButton';
@@ -59,10 +58,6 @@ export default function FeedItem({
           />
         </ErrorBoundary>
       );
-    }
-
-    if (post.type === 'gallery' && post.mediaContent?.gallery) {
-      return <ImageGallery images={post.mediaContent.gallery.images} />;
     }
 
     if (post.type === 'audio' && post.mediaContent?.audio) {
