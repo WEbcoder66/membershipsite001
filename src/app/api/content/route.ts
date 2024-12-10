@@ -3,6 +3,22 @@ import { validateAdmin } from '@/lib/auth';
 import dbConnect from '@/lib/mongodb';
 import Content from '@/models/Content'; // ensure correct path to your Content model
 
+// GET method to fetch existing content
+export async function GET() {
+  try {
+    await dbConnect();
+    const allContent = await Content.find().sort({ createdAt: -1 }).lean();
+    return NextResponse.json({ success: true, data: allContent }, { status: 200 });
+  } catch (error) {
+    console.error('Content API GET Error:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch content' },
+      { status: 500 }
+    );
+  }
+}
+
+// POST method to create new content
 export async function POST(req: Request) {
   try {
     // Validate admin access
@@ -25,8 +41,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // This route expects only metadata (no large files)
-    // The video should already be uploaded directly to Bunny.net
+    // Only metadata should be sent here. The file is already uploaded directly to Bunny.net.
     const newContent = await Content.create({
       type,
       title,
