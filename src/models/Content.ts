@@ -1,46 +1,57 @@
 // src/models/Content.ts
 import mongoose, { Document } from 'mongoose';
 
+type ContentType = 'video' | 'gallery' | 'audio' | 'post';
+type MembershipTier = 'basic' | 'premium' | 'allAccess';
+
+interface VideoContent {
+  videoId: string;
+  url?: string;
+  thumbnail?: string;
+  duration?: string;
+  title?: string;
+}
+
+interface GalleryContent {
+  images: string[];
+}
+
+interface AudioContent {
+  url?: string;
+  duration?: string;
+}
+
+interface PollContent {
+  options?: Record<string, number>;
+  endDate?: Date;
+  multipleChoice?: boolean;
+}
+
 // Define interfaces for strongly typed schema
 interface IContent extends Document {
-  type: 'video' | 'gallery' | 'audio' | 'poll';
+  type: ContentType;
   title: string;
   description?: string;
   createdAt: Date;
   updatedAt: Date;
-  tier: 'basic' | 'premium' | 'allAccess';
+  tier: MembershipTier;
   isLocked: boolean;
   mediaContent?: {
-    video?: {
-      videoId: string;
-      url: string;
-      thumbnail: string;
-      duration: string;
-      title: string;
-    };
-    gallery?: {
-      images: string[];
-    };
-    audio?: {
-      url: string;
-      duration: string;
-    };
-    poll?: {
-      options: Record<string, number>;
-      endDate: Date;
-      multipleChoice: boolean;
-    };
+    video?: VideoContent;
+    gallery?: GalleryContent;
+    audio?: AudioContent;
+    poll?: PollContent; // poll now part of 'post' or any content if needed
   };
   likes: number;
   comments: number;
   views: number;
 }
 
-const ContentSchema = new mongoose.Schema({
+const ContentSchema = new mongoose.Schema<IContent>({
   type: {
     type: String,
     required: true,
-    enum: ['video', 'gallery', 'audio', 'poll']
+    enum: ['video', 'gallery', 'audio', 'post'] // Added 'post' here, removed 'poll'
   },
   title: {
     type: String,
@@ -108,10 +119,10 @@ const ContentSchema = new mongoose.Schema({
   collection: 'contents'
 });
 
-// Add a pre-save middleware to validate video content
+// Add a pre-save middleware to validate video content if needed
 ContentSchema.pre('save', function(this: IContent, next) {
   if (this.type === 'video' && (!this.mediaContent?.video?.videoId)) {
-    next(new Error('Video content requires a videoId'));
+    return next(new Error('Video content requires a videoId'));
   }
   next();
 });
