@@ -1,4 +1,3 @@
-// src/components/ContentManager.tsx
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -43,11 +42,7 @@ export default function ContentManager() {
   const [error, setError] = useState<string | null>(null);
   const [content, setContent] = useState<Content[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [editingContent, setEditingContent] = useState<{
-    id: string;
-    title: string;
-    description: string;
-  } | null>(null);
+  const [editingContent, setEditingContent] = useState<{ id: string; title: string; description: string } | null>(null);
   const [pollOptions, setPollOptions] = useState<string[]>(['', '']);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -108,16 +103,47 @@ export default function ContentManager() {
     
     const file = e.dataTransfer.files?.[0];
     if (file) {
-      handleUpload(file);
+      await handleUpload(file);
     }
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      handleUpload(file);
+      await handleUpload(file);
     }
   };
+
+  async function uploadFileInChunks(file: File, guid: string, userEmail: string) {
+    const chunkSize = 5 * 1024 * 1024; // 5MB per chunk
+    let start = 0;
+    let chunkIndex = 0;
+
+    while (start < file.size) {
+      const end = Math.min(start + chunkSize, file.size);
+      const chunk = file.slice(start, end);
+      const isLastChunk = end >= file.size;
+
+      const formData = new FormData();
+      formData.append('file', chunk);
+      formData.append('guid', guid);
+      formData.append('chunkIndex', String(chunkIndex));
+      formData.append('isLastChunk', String(isLastChunk));
+
+      const res = await fetch('/api/videos/upload-proxy', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${userEmail}` },
+        body: formData
+      });
+
+      if (!res.ok) {
+        throw new Error(`Failed to upload chunk ${chunkIndex}`);
+      }
+
+      chunkIndex++;
+      start = end;
+    }
+  }
 
   const handleUpload = async (file: File) => {
     if (!user?.email) {
@@ -156,23 +182,10 @@ export default function ContentManager() {
 
       const { guid } = sessionData;
 
-      // 2. Upload the file via the upload-proxy route
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('guid', guid);
+      // 2. Upload the file in chunks
+      await uploadFileInChunks(file, guid, user.email);
 
-      const uploadRes = await fetch('/api/videos/upload-proxy', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${user.email}` },
-        body: formData
-      });
-
-      const uploadData = await uploadRes.json();
-      if (!uploadRes.ok) {
-        throw new Error(uploadData.error || 'Upload failed');
-      }
-
-      // 3. Save metadata to /api/content
+      // 3. After all chunks uploaded, store metadata in /api/content
       const contentRes = await fetch('/api/content', {
         method: 'POST',
         headers: {
