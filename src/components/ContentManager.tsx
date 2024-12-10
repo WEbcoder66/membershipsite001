@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { 
   Upload,
-  Video, 
+  Video,
   Image as ImageIcon,
   Edit2,
   Trash2,
@@ -19,7 +19,7 @@ interface Content {
   id: string;
   title: string;
   description?: string;
-  type: 'video' | 'gallery' | 'audio' | 'poll';
+  type: 'video' | 'gallery' | 'audio' | 'post';
   tier: 'basic' | 'premium' | 'allAccess';
   createdAt: string;
   mediaContent?: {
@@ -28,12 +28,17 @@ interface Content {
       url?: string;
       thumbnail?: string;
     };
+    poll?: {
+      options: Record<string, number>;
+      endDate: string;
+      multipleChoice: boolean;
+    };
   };
 }
 
 export default function ContentManager() {
   const { user } = useAuth();
-  const [contentType, setContentType] = useState<'video' | 'gallery' | 'audio' | 'poll'>('video');
+  const [contentType, setContentType] = useState<'video' | 'gallery' | 'audio' | 'post'>('video');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [membershipTier, setMembershipTier] = useState<'basic' | 'premium' | 'allAccess'>('basic');
@@ -43,7 +48,11 @@ export default function ContentManager() {
   const [content, setContent] = useState<Content[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [editingContent, setEditingContent] = useState<{ id: string; title: string; description: string } | null>(null);
+  
+  // For post type with optional poll
   const [pollOptions, setPollOptions] = useState<string[]>(['', '']);
+  const [pollEnabled, setPollEnabled] = useState(false);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchContent = useCallback(async () => {
@@ -117,8 +126,13 @@ export default function ContentManager() {
       return;
     }
 
-    if (contentType === 'poll') {
-      setError('For polls, use the Create Poll button (no file upload).');
+    if (contentType === 'post' && pollEnabled && pollOptions.filter(opt => opt.trim()).length < 2) {
+      setError('Please provide at least 2 poll options for the poll.');
+      return;
+    }
+
+    if (contentType !== 'post' && !title) {
+      setError('Please fill in the title.');
       return;
     }
 
@@ -127,56 +141,86 @@ export default function ContentManager() {
       return;
     }
 
+    // If this is a post without video (e.g. a text-only post or poll), we might not need to upload a file.
+    // For gallery/audio/video we must have a file. If contentType is 'post' and pollEnabled or just a text post, file might be optional.
+    // Adjust logic as per your needs. Here we assume for 'video'/'gallery'/'audio' a file is required.
+    if ((contentType === 'video' || contentType === 'gallery' || contentType === 'audio') && !file) {
+      setError('Please select a file to upload.');
+      return;
+    }
+
     try {
       setIsUploading(true);
       setError(null);
 
-      // Get a pre-signed URL from DO Spaces
-      const fileName = `${Date.now()}-${file.name}`;
-      const fileType = file.type;
+      let fileUrl: string | undefined;
 
-      const presignRes = await fetch('/api/videos/get-presigned-url', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileName, fileType })
-      });
-      const { url } = await presignRes.json();
+      // Only upload if contentType requires a file
+      if (contentType === 'video' || contentType === 'gallery' || contentType === 'audio') {
+        const fileName = `${Date.now()}-${file.name}`;
+        const fileType = file.type;
 
-      if (!presignRes.ok || !url) {
-        throw new Error('Failed to get pre-signed URL');
+        const presignRes = await fetch('/api/videos/get-presigned-url', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fileName, fileType })
+        });
+        const { url } = await presignRes.json();
+
+        if (!presignRes.ok || !url) {
+          throw new Error('Failed to get pre-signed URL');
+        }
+
+        // Upload the file directly to DigitalOcean Spaces using the pre-signed URL
+        const uploadRes = await fetch(url, {
+          method: 'PUT',
+          headers: { 'Content-Type': fileType },
+          body: file
+        });
+
+        if (!uploadRes.ok) {
+          throw new Error('Upload to Spaces failed');
+        }
+
+        const bucketName = 'my-site-uploads'; // Replace with your actual bucket name
+        const region = process.env.NEXT_PUBLIC_DO_REGION || 'nyc3';
+        fileUrl = `https://${bucketName}.${region}.digitaloceanspaces.com/${fileName}`;
       }
 
-      // Upload the file directly to DigitalOcean Spaces using the pre-signed URL
-      const uploadRes = await fetch(url, {
-        method: 'PUT',
-        headers: { 'Content-Type': fileType },
-        body: file
-      });
-
-      if (!uploadRes.ok) {
-        throw new Error('Upload to Spaces failed');
+      // Construct mediaContent based on post/poll logic
+      let mediaContent: any = {};
+      if (contentType === 'video' || contentType === 'gallery' || contentType === 'audio') {
+        mediaContent = {
+          video: { videoId: fileUrl }
+        };
+      } else if (contentType === 'post') {
+        if (pollEnabled) {
+          // This is a post with poll
+          mediaContent = {
+            poll: {
+              options: pollOptions.reduce((acc, opt) => ({ ...acc, [opt]: 0 }), {}),
+              endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+              multipleChoice: false
+            }
+          };
+        } else {
+          // Just a regular text-based post
+          mediaContent = {}; // No poll or video
+        }
       }
 
-      // Construct the file URL for metadata storage
-      const bucketName = 'my-site-uploads'; // Replace with your actual bucket name
-      const region = process.env.NEXT_PUBLIC_DO_REGION || 'nyc3';
-      const fileUrl = `https://${bucketName}.${region}.digitaloceanspaces.com/${fileName}`;
-
-      // After successful upload, store metadata in /api/content
       const contentRes = await fetch('/api/content', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${user.email}`
+          'Authorization': `Bearer ${user?.email}`
         },
         body: JSON.stringify({
           type: contentType,
           title,
           description,
           tier: membershipTier,
-          mediaContent: {
-            video: { videoId: fileUrl } // store DO file URL as videoId
-          }
+          mediaContent
         })
       });
 
@@ -188,6 +232,12 @@ export default function ContentManager() {
       alert('Content uploaded and saved successfully!');
       resetForm();
       fetchContent();
+
+      // Add to feed if it's a post
+      if (contentType === 'post') {
+        // Add logic to add post to public/member feed
+        await handleAddToFeed(contentData.data);
+      }
 
     } catch (err: any) {
       console.error('Upload error:', err);
@@ -204,6 +254,7 @@ export default function ContentManager() {
       fileInputRef.current.value = '';
     }
     setPollOptions(['', '']);
+    setPollEnabled(false);
     setError(null);
   };
 
@@ -222,56 +273,8 @@ export default function ContentManager() {
   };
 
   const handleCreatePoll = async () => {
-    if (!title || !description || pollOptions.filter(opt => opt.trim()).length < 2) {
-      setError('Please fill in all required fields and provide at least 2 poll options');
-      return;
-    }
-
-    try {
-      setIsUploading(true);
-      setError(null);
-
-      if (!user?.email) {
-        throw new Error('No user email found');
-      }
-
-      const response = await fetch('/api/content', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${user.email}`
-        },
-        body: JSON.stringify({
-          type: 'poll',
-          title,
-          description,
-          tier: membershipTier,
-          mediaContent: {
-            poll: {
-              options: pollOptions.reduce((acc, opt) => ({ ...acc, [opt]: 0 }), {}),
-              endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-              multipleChoice: false
-            }
-          }
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to create poll');
-      }
-
-      const data = await response.json();
-      if (data.success && data.data) {
-        setContent(prev => [...prev, data.data]);
-        resetForm();
-        alert('Poll created successfully!');
-      }
-    } catch (error) {
-      console.error('Poll creation error:', error);
-      setError('Failed to create poll. Please try again.');
-    } finally {
-      setIsUploading(false);
-    }
+    // This function may not be needed now since we integrated poll into post logic.
+    // If still needed, keep it or remove it.
   };
 
   const handleUpdate = async (contentId: string, updates: { title?: string; description?: string }) => {
@@ -290,7 +293,6 @@ export default function ContentManager() {
         throw new Error('Failed to update content');
       }
 
-      // Update local state
       setContent(prev => prev.map(item =>
         item.id === contentId ? { ...item, ...updates } : item
       ));
@@ -299,6 +301,50 @@ export default function ContentManager() {
     } catch (err: any) {
       console.error('Update error:', err);
       setError(err.message || 'Failed to update content');
+    }
+  };
+
+  // New function to handle deletion of content
+  const handleDeleteContent = async (contentId: string) => {
+    try {
+      setError(null);
+      const response = await fetch(`/api/content?id=${contentId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${user?.email}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete content');
+      }
+
+      setContent(prev => prev.filter(item => item.id !== contentId));
+      alert('Content deleted successfully!');
+    } catch (err: any) {
+      console.error('Delete error:', err);
+      setError(err.message || 'Failed to delete content');
+    }
+  };
+
+  // Simulate adding posts to a feed
+  const handleAddToFeed = async (postData: Content) => {
+    try {
+      // Example: send a request to /api/feed to add post
+      const response = await fetch('/api/feed', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+          // auth if needed
+        },
+        body: JSON.stringify({ postId: postData.id })
+      });
+      if (!response.ok) {
+        throw new Error('Failed to add post to feed.');
+      }
+      console.log('Post added to feed successfully!');
+    } catch (err) {
+      console.error('Add to feed error:', err);
     }
   };
 
@@ -331,11 +377,17 @@ export default function ContentManager() {
                 { type: 'video', icon: Video, label: 'Video' },
                 { type: 'gallery', icon: ImageIcon, label: 'Gallery' },
                 { type: 'audio', icon: Music, label: 'Audio' },
-                { type: 'poll', icon: MessageSquare, label: 'Poll' }
+                { type: 'post', icon: MessageSquare, label: 'Post' }
               ].map(({ type, icon: Icon, label }) => (
                 <button
                   key={type}
-                  onClick={() => setContentType(type as any)}
+                  onClick={() => {
+                    setContentType(type as any);
+                    // Reset poll if switching away from post
+                    if (type !== 'post') {
+                      setPollEnabled(false);
+                    }
+                  }}
                   className={`p-4 rounded-lg border-2 flex flex-col items-center gap-2 transition-colors ${
                     contentType === type
                       ? 'border-yellow-400 bg-yellow-50'
@@ -401,37 +453,56 @@ export default function ContentManager() {
               </select>
             </div>
 
-            {/* Content Upload or Poll Options */}
-            {contentType === 'poll' ? (
-              <div className="space-y-4">
-                {pollOptions.map((option, index) => (
-                  <div key={index} className="flex gap-2">
-                    <input
-                      type="text"
-                      value={option}
-                      onChange={(e) => updatePollOption(index, e.target.value)}
-                      className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400 text-black"
-                      placeholder={`Option ${index + 1}`}
-                    />
-                    {index >= 2 && (
-                      <button
-                        onClick={() => removePollOption(index)}
-                        className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
-                      >
-                        <X className="w-5 h-5" />
-                      </button>
-                    )}
+            {/* If content type is 'post', show a toggle for Poll */}
+            {contentType === 'post' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Poll Options
+                </label>
+                <div className="flex items-center gap-2 mb-4">
+                  <input
+                    type="checkbox"
+                    checked={pollEnabled}
+                    onChange={() => setPollEnabled(!pollEnabled)}
+                  />
+                  <span className="text-gray-700">Enable Poll for this Post</span>
+                </div>
+
+                {pollEnabled && (
+                  <div className="space-y-4">
+                    {pollOptions.map((option, index) => (
+                      <div key={index} className="flex gap-2">
+                        <input
+                          type="text"
+                          value={option}
+                          onChange={(e) => updatePollOption(index, e.target.value)}
+                          className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400 text-black"
+                          placeholder={`Option ${index + 1}`}
+                        />
+                        {index >= 2 && (
+                          <button
+                            onClick={() => removePollOption(index)}
+                            className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
+                          >
+                            <X className="w-5 h-5" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    <button
+                      onClick={addPollOption}
+                      className="flex items-center gap-2 text-yellow-600 hover:text-yellow-700"
+                    >
+                      <PlusCircle className="w-4 h-4" />
+                      Add Option
+                    </button>
                   </div>
-                ))}
-                <button
-                  onClick={addPollOption}
-                  className="flex items-center gap-2 text-yellow-600 hover:text-yellow-700"
-                >
-                  <PlusCircle className="w-4 h-4" />
-                  Add Option
-                </button>
+                )}
               </div>
-            ) : (
+            )}
+
+            {/* File Upload Section for video/gallery/audio. For post (without poll), optional. */}
+            {(contentType === 'video' || contentType === 'gallery' || contentType === 'audio') && (
               <div
                 className={`border-2 border-dashed rounded-lg p-8 ${
                   dragActive ? 'border-yellow-400 bg-yellow-50' : 'border-gray-300'
@@ -476,15 +547,30 @@ export default function ContentManager() {
 
             {/* Submit Button */}
             <button
-              onClick={contentType === 'poll' ? handleCreatePoll : () => fileInputRef.current?.click()}
-              disabled={isUploading || !title || !description || (contentType === 'poll' && pollOptions.filter(opt => opt.trim()).length < 2)}
+              onClick={async () => {
+                if (contentType === 'post' && pollEnabled) {
+                  // If poll is enabled, we handle it in handleUpload
+                  await handleUpload(new File([], ''));
+                } else if (contentType === 'post' && !pollEnabled) {
+                  await handleUpload(new File([], ''));
+                } else {
+                  // For video/gallery/audio, user selects file
+                  // If no file: handleUpload with selected file done in handleFileSelect
+                  if (fileInputRef.current?.files?.[0]) {
+                    await handleUpload(fileInputRef.current.files[0]);
+                  } else {
+                    setError('Please select a file if required or ensure all fields are filled.');
+                  }
+                }
+              }}
+              disabled={isUploading || !title || !description || (contentType === 'post' && pollEnabled && pollOptions.filter(opt => opt.trim()).length < 2)}
               className={`w-full bg-yellow-400 text-black py-3 rounded-lg font-medium hover:bg-yellow-500 disabled:opacity-50 disabled:cursor-not-allowed`}
             >
-              {isUploading ? 'Uploading...' : contentType === 'poll' ? 'Create Poll' : 'Upload Content'}
+              {isUploading ? 'Uploading...' : 'Upload Content'}
             </button>
           </div>
 
-          {/* Content List */}
+          {/* Manage Content Section */}
           {content.length > 0 && (
             <div className="mt-8 space-y-4">
               <h3 className="text-lg font-bold">Existing Content</h3>
@@ -520,7 +606,12 @@ export default function ContentManager() {
                       >
                         <Edit2 className="w-4 h-4" />
                       </button>
-                      {/* Delete button handled in admin panel */}
+                      <button
+                        onClick={() => handleDeleteContent(item.id)}
+                        className="p-2 hover:bg-gray-100 rounded text-red-600"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
                 </div>
