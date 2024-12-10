@@ -1,3 +1,5 @@
+// src/lib/bunnyService.ts
+
 interface BunnyConfig {
   apiKey: string;
   libraryId: string;
@@ -17,6 +19,8 @@ export class BunnyVideoService {
       securityKey: process.env.BUNNY_SECURITY_KEY || ''
     };
 
+    // BUNNY_CDN_URL and BUNNY_SECURITY_KEY may not be strictly required if not using secure URLs.
+    // But let's keep the original checks.
     if (!this.config.apiKey || !this.config.libraryId || !this.config.cdnUrl || !this.config.securityKey) {
       throw new Error(
         'Missing required Bunny.net configuration. Ensure BUNNY_API_KEY, BUNNY_LIBRARY_ID, BUNNY_CDN_URL, and BUNNY_SECURITY_KEY are set.'
@@ -24,7 +28,7 @@ export class BunnyVideoService {
     }
   }
 
-  // Create a new video on Bunny.net
+  // Create a new video entry on Bunny.net
   async createVideo(title: string): Promise<{ guid: string }> {
     const response = await fetch(`${this.API_BASE_URL}/${this.config.libraryId}/videos`, {
       method: 'POST',
@@ -42,7 +46,7 @@ export class BunnyVideoService {
     return response.json();
   }
 
-  // Update video title on Bunny.net
+  // Other methods (optional):
   async updateVideoTitle(videoId: string, title: string): Promise<void> {
     const response = await fetch(`${this.API_BASE_URL}/${this.config.libraryId}/videos/${videoId}`, {
       method: 'PATCH',
@@ -58,7 +62,6 @@ export class BunnyVideoService {
     }
   }
 
-  // List videos from Bunny.net
   async listVideos(page: number = 1, perPage: number = 100): Promise<{ items: any[]; totalItems: number }> {
     const url = `${this.API_BASE_URL}/${this.config.libraryId}/videos?page=${page}&perPage=${perPage}`;
     const response = await fetch(url, {
@@ -75,7 +78,6 @@ export class BunnyVideoService {
     return response.json();
   }
 
-  // Generate a secure URL for playback or thumbnail
   async getVideoUrl(videoId: string, type: 'video' | 'thumbnail' = 'video'): Promise<string> {
     const timestamp = Math.floor(Date.now() / 1000);
     const expires = timestamp + 3600; // 1 hour
@@ -100,7 +102,6 @@ export class BunnyVideoService {
     return `${this.config.cdnUrl}/${videoId}/${pathPart}?token=${token}&expires=${expires}`;
   }
 
-  // Delete a video from Bunny.net
   async deleteVideo(videoId: string): Promise<void> {
     const response = await fetch(`${this.API_BASE_URL}/${this.config.libraryId}/videos/${videoId}`, {
       method: 'DELETE',

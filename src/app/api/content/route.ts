@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server';
 import { validateAdmin } from '@/lib/auth';
 import dbConnect from '@/lib/mongodb';
-import Content from '@/models/Content'; // ensure correct path to your Content model
+import Content from '@/models/Content'; 
 
-// GET method to fetch existing content
 export async function GET() {
   try {
     await dbConnect();
@@ -11,14 +10,10 @@ export async function GET() {
     return NextResponse.json({ success: true, data: allContent }, { status: 200 });
   } catch (error) {
     console.error('Content API GET Error:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch content' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to fetch content' }, { status: 500 });
   }
 }
 
-// POST method to create new content
 export async function POST(req: Request) {
   try {
     // Validate admin access
@@ -31,17 +26,12 @@ export async function POST(req: Request) {
     }
 
     await dbConnect();
-
     const { type, title, description, tier, mediaContent } = await req.json();
 
     if (!type || !title || !tier) {
-      return NextResponse.json(
-        { error: 'Missing required fields' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    // Only metadata should be sent here. The file is already uploaded directly to Bunny.net.
     const newContent = await Content.create({
       type,
       title,
@@ -63,9 +53,6 @@ export async function POST(req: Request) {
 
   } catch (error) {
     console.error('Content API POST Error:', error);
-    return NextResponse.json(
-      { error: 'Failed to create content' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to create content' }, { status: 500 });
   }
 }

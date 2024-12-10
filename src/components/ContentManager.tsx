@@ -1,5 +1,6 @@
 // src/components/ContentManager.tsx
 'use client';
+
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { 
@@ -38,7 +39,6 @@ export default function ContentManager() {
   const [description, setDescription] = useState('');
   const [membershipTier, setMembershipTier] = useState<'basic' | 'premium' | 'allAccess'>('basic');
   const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress] = useState(0); // We won't track exact progress here for simplicity
   const [dragActive, setDragActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [content, setContent] = useState<Content[]>([]);
@@ -108,26 +108,30 @@ export default function ContentManager() {
     
     const file = e.dataTransfer.files?.[0];
     if (file) {
-      handleDirectUpload(file);
+      handleUpload(file);
     }
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      handleDirectUpload(file);
+      handleUpload(file);
     }
   };
 
-  // New function to handle direct upload to Bunny.net
-  const handleDirectUpload = async (file: File) => {
+  const handleUpload = async (file: File) => {
+    if (!user?.email) {
+      setError('No user email found');
+      return;
+    }
+
     if (contentType === 'poll') {
-      setError('Use the "Create Poll" button for polls, no file upload required.');
+      setError('For polls, use the Create Poll button (no file upload).');
       return;
     }
 
     if (!title || !description) {
-      setError('Please fill in all required fields');
+      setError('Please fill in the title and description.');
       return;
     }
 
@@ -135,12 +139,8 @@ export default function ContentManager() {
       setIsUploading(true);
       setError(null);
 
-      if (!user?.email) {
-        throw new Error('No user email found');
-      }
-
-      // Step 1: Get upload URL and videoId from your server
-      const getUrlRes = await fetch('/api/videos/get-upload-url', {
+      // 1. Create a video session to get a guid
+      const sessionRes = await fetch('/api/videos/create-session', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -149,30 +149,33 @@ export default function ContentManager() {
         body: JSON.stringify({ title })
       });
 
-      if (!getUrlRes.ok) {
-        throw new Error('Failed to get upload URL');
+      const sessionData = await sessionRes.json();
+      if (!sessionRes.ok || !sessionData.guid) {
+        throw new Error(sessionData.error || 'Failed to create upload session');
       }
 
-      const { uploadUrl, videoId } = await getUrlRes.json();
+      const { guid } = sessionData;
 
-      // Step 2: Upload the file directly to Bunny.net
-      const uploadResponse = await fetch(uploadUrl, {
-        method: 'PUT',
-        headers: {
-          'AccessKey': process.env.NEXT_PUBLIC_BUNNY_API_KEY as string,
-          'Content-Type': 'application/octet-stream'
-        },
-        body: file
-      });
-      
-      if (!uploadResponse.ok) {
-        throw new Error('Direct upload to Bunny.net failed');
-      }
+      // 2. Upload the file via the upload-proxy route
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('guid', guid);
 
-      // Step 3: After successful upload, send metadata to /api/content
-      const contentResponse = await fetch('/api/content', {
+      const uploadRes = await fetch('/api/videos/upload-proxy', {
         method: 'POST',
-        headers: { 
+        headers: { 'Authorization': `Bearer ${user.email}` },
+        body: formData
+      });
+
+      const uploadData = await uploadRes.json();
+      if (!uploadRes.ok) {
+        throw new Error(uploadData.error || 'Upload failed');
+      }
+
+      // 3. Save metadata to /api/content
+      const contentRes = await fetch('/api/content', {
+        method: 'POST',
+        headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${user.email}`
         },
@@ -182,25 +185,23 @@ export default function ContentManager() {
           description,
           tier: membershipTier,
           mediaContent: {
-            video: { videoId }
+            video: { videoId: guid }
           }
         })
       });
 
-      if (!contentResponse.ok) {
-        throw new Error('Failed to save content metadata');
+      const contentData = await contentRes.json();
+      if (!contentRes.ok) {
+        throw new Error(contentData.error || 'Failed to save content metadata');
       }
 
-      const data = await contentResponse.json();
-      if (data.success && data.data) {
-        setContent(prev => [...prev, data.data]);
-        resetForm();
-        alert('Content uploaded successfully!');
-      }
-
-    } catch (error) {
-      console.error('Upload error:', error);
-      setError(error instanceof Error ? error.message : 'Failed to upload content. Please try again.');
+      alert('Content uploaded and saved successfully!');
+      resetForm();
+      fetchContent();
+      
+    } catch (err: any) {
+      console.error('Upload error:', err);
+      setError(err.message || 'Failed to upload content. Please try again.');
     } finally {
       setIsUploading(false);
     }
@@ -299,16 +300,15 @@ export default function ContentManager() {
         throw new Error('Failed to update content');
       }
 
-      // Assuming the response returns the updated content
-      setContent(prev => prev.map(item => 
+      // Update local state
+      setContent(prev => prev.map(item =>
         item.id === contentId ? { ...item, ...updates } : item
       ));
-      
+
       setEditingContent(null);
-      
-    } catch (err) {
+    } catch (err: any) {
       console.error('Update error:', err);
-      setError(err instanceof Error ? err.message : 'Failed to update content');
+      setError(err.message || 'Failed to update content');
     }
   };
 
