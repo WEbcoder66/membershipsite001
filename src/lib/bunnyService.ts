@@ -19,7 +19,7 @@ export class BunnyVideoService {
 
     if (!this.config.apiKey || !this.config.libraryId || !this.config.cdnUrl || !this.config.securityKey) {
       throw new Error(
-        'Missing required Bunny.net configuration. Please ensure BUNNY_API_KEY, BUNNY_LIBRARY_ID, BUNNY_CDN_URL, and BUNNY_SECURITY_KEY are set.'
+        'Missing required Bunny.net configuration. Ensure BUNNY_API_KEY, BUNNY_LIBRARY_ID, BUNNY_CDN_URL, and BUNNY_SECURITY_KEY are set.'
       );
     }
   }
@@ -42,24 +42,40 @@ export class BunnyVideoService {
     return response.json();
   }
 
-  // Upload video data to Bunny.net
-  async uploadVideo(videoId: string, data: ArrayBuffer): Promise<void> {
-    const url = `${this.API_BASE_URL}/${this.config.libraryId}/videos/${videoId}`;
-    const response = await fetch(url, {
-      method: 'PUT',
+  // Update video title on Bunny.net
+  async updateVideoTitle(videoId: string, title: string): Promise<void> {
+    const response = await fetch(`${this.API_BASE_URL}/${this.config.libraryId}/videos/${videoId}`, {
+      method: 'PATCH',
       headers: {
         'AccessKey': this.config.apiKey,
-        'Content-Type': 'application/octet-stream'
+        'Content-Type': 'application/json'
       },
-      body: data
+      body: JSON.stringify({ title })
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to upload video: ${response.statusText}`);
+      throw new Error(`Failed to update video title: ${response.statusText}`);
     }
   }
 
-  // Generate secure URL for video or thumbnail
+  // List videos from Bunny.net
+  async listVideos(page: number = 1, perPage: number = 100): Promise<{ items: any[]; totalItems: number }> {
+    const url = `${this.API_BASE_URL}/${this.config.libraryId}/videos?page=${page}&perPage=${perPage}`;
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'AccessKey': this.config.apiKey
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch video list: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  // Generate a secure URL for playback or thumbnail
   async getVideoUrl(videoId: string, type: 'video' | 'thumbnail' = 'video'): Promise<string> {
     const timestamp = Math.floor(Date.now() / 1000);
     const expires = timestamp + 3600; // 1 hour
@@ -97,40 +113,6 @@ export class BunnyVideoService {
       throw new Error(`Failed to delete video: ${response.statusText}`);
     }
   }
-
-  // Update the title of a video on Bunny.net
-  async updateVideoTitle(videoId: string, title: string): Promise<void> {
-    const response = await fetch(`${this.API_BASE_URL}/${this.config.libraryId}/videos/${videoId}`, {
-      method: 'PATCH',
-      headers: {
-        'AccessKey': this.config.apiKey,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ title })
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to update video title: ${response.statusText}`);
-    }
-  }
-
-  // List videos from Bunny.net with pagination
-  async listVideos(page: number = 1, perPage: number = 100): Promise<{ items: any[]; totalItems: number }> {
-    const url = `${this.API_BASE_URL}/${this.config.libraryId}/videos?page=${page}&perPage=${perPage}`;
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'AccessKey': this.config.apiKey
-      }
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch video list: ${response.statusText}`);
-    }
-
-    return response.json();
-  }
 }
 
-// Export a single instance of the BunnyVideoService
 export const bunnyVideo = new BunnyVideoService();

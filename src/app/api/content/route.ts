@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { validateAdmin } from '@/lib/auth';
 import dbConnect from '@/lib/mongodb';
-import Content from '@/models/Content'; // Adjust path to your Content model
+import Content from '@/models/Content'; // ensure correct path to your Content model
 
 export async function POST(req: Request) {
   try {
@@ -25,6 +25,8 @@ export async function POST(req: Request) {
       );
     }
 
+    // This route expects only metadata (no large files)
+    // The video should already be uploaded directly to Bunny.net
     const newContent = await Content.create({
       type,
       title,
@@ -42,7 +44,7 @@ export async function POST(req: Request) {
         id: newContent._id.toString(),
         ...newContent.toObject()
       }
-    });
+    }, { status: 201 });
 
   } catch (error) {
     console.error('Content API POST Error:', error);

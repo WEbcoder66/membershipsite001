@@ -14,7 +14,6 @@ import {
   MessageSquare,
   Music
 } from 'lucide-react';
-import { Alert } from '@/components/ui/alert';
 
 interface Content {
   id: string;
@@ -39,7 +38,7 @@ export default function ContentManager() {
   const [description, setDescription] = useState('');
   const [membershipTier, setMembershipTier] = useState<'basic' | 'premium' | 'allAccess'>('basic');
   const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadProgress] = useState(0); // We won't track exact progress here for simplicity
   const [dragActive, setDragActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [content, setContent] = useState<Content[]>([]);
@@ -109,99 +108,107 @@ export default function ContentManager() {
     
     const file = e.dataTransfer.files?.[0];
     if (file) {
-      handleFileUpload(file);
-    }
-  };
-
-  const handleFileUpload = async (file: File) => {
-    if (!title || !description) {
-      setError('Please fill in all required fields');
-      return;
-    }
-
-    setIsUploading(true);
-    setUploadProgress(0);
-    setError(null);
-
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('title', title);
-      formData.append('description', description);
-      formData.append('membershipTier', membershipTier);
-      formData.append('contentType', contentType);
-
-      if (!user?.email) {
-        throw new Error('No user email found');
-      }
-
-      const response = await fetch('/api/content/upload', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${user.email}`
-        },
-        body: formData
-      });
-
-      if (!response.ok) {
-        throw new Error('Upload failed');
-      }
-
-      const data = await response.json();
-      if (data.success && data.data) {
-        setContent(prev => [...prev, data.data]);
-        resetForm();
-        alert('Content uploaded successfully!');
-      }
-    } catch (error) {
-      console.error('Upload error:', error);
-      setError('Failed to upload content. Please try again.');
-    } finally {
-      setIsUploading(false);
-      setUploadProgress(0);
+      handleDirectUpload(file);
     }
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      handleFileUpload(file);
+      handleDirectUpload(file);
     }
   };
 
-  const handleUpdate = async (contentId: string, updates: { title?: string; description?: string }) => {
-    try {
-      setError(null);
-      const response = await fetch(`/api/content/${contentId}`, {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${user?.email}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(updates)
-      });
+  // New function to handle direct upload to Bunny.net
+  const handleDirectUpload = async (file: File) => {
+    if (contentType === 'poll') {
+      setError('Use the "Create Poll" button for polls, no file upload required.');
+      return;
+    }
 
-      if (!response.ok) {
-        throw new Error('Failed to update content');
+    if (!title || !description) {
+      setError('Please fill in all required fields');
+      return;
+    }
+
+    try {
+      setIsUploading(true);
+      setError(null);
+
+      if (!user?.email) {
+        throw new Error('No user email found');
       }
 
-      const updatedContent = await response.json();
-      setContent(prev => prev.map(item => 
-        item.id === contentId ? { ...item, ...updates } : item
-      ));
+      // Step 1: Get upload URL and videoId from your server
+      const getUrlRes = await fetch('/api/videos/get-upload-url', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${user.email}`
+        },
+        body: JSON.stringify({ title })
+      });
+
+      if (!getUrlRes.ok) {
+        throw new Error('Failed to get upload URL');
+      }
+
+      const { uploadUrl, videoId } = await getUrlRes.json();
+
+      // Step 2: Upload the file directly to Bunny.net
+      const uploadResponse = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: {
+          'AccessKey': process.env.NEXT_PUBLIC_BUNNY_API_KEY as string,
+          'Content-Type': 'application/octet-stream'
+        },
+        body: file
+      });
       
-      setEditingContent(null);
-      
-    } catch (err) {
-      console.error('Update error:', err);
-      setError(err instanceof Error ? err.message : 'Failed to update content');
+      if (!uploadResponse.ok) {
+        throw new Error('Direct upload to Bunny.net failed');
+      }
+
+      // Step 3: After successful upload, send metadata to /api/content
+      const contentResponse = await fetch('/api/content', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${user.email}`
+        },
+        body: JSON.stringify({
+          type: contentType,
+          title,
+          description,
+          tier: membershipTier,
+          mediaContent: {
+            video: { videoId }
+          }
+        })
+      });
+
+      if (!contentResponse.ok) {
+        throw new Error('Failed to save content metadata');
+      }
+
+      const data = await contentResponse.json();
+      if (data.success && data.data) {
+        setContent(prev => [...prev, data.data]);
+        resetForm();
+        alert('Content uploaded successfully!');
+      }
+
+    } catch (error) {
+      console.error('Upload error:', error);
+      setError(error instanceof Error ? error.message : 'Failed to upload content. Please try again.');
+    } finally {
+      setIsUploading(false);
     }
   };
 
   const resetForm = () => {
     setTitle('');
     setDescription('');
-    setUploadProgress(0);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -276,6 +283,35 @@ export default function ContentManager() {
     }
   };
 
+  const handleUpdate = async (contentId: string, updates: { title?: string; description?: string }) => {
+    try {
+      setError(null);
+      const response = await fetch(`/api/content/${contentId}`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${user?.email}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(updates)
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update content');
+      }
+
+      // Assuming the response returns the updated content
+      setContent(prev => prev.map(item => 
+        item.id === contentId ? { ...item, ...updates } : item
+      ));
+      
+      setEditingContent(null);
+      
+    } catch (err) {
+      console.error('Update error:', err);
+      setError(err instanceof Error ? err.message : 'Failed to update content');
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex justify-center items-center p-8">
@@ -288,8 +324,7 @@ export default function ContentManager() {
     <div className="bg-white rounded-lg shadow-lg p-6">
       {error && (
         <div className="p-4 bg-red-50 text-red-700 rounded-lg">
-          <p>Error loading content manager. Please try refreshing the page.</p>
-          <p className="text-sm mt-2">{error}</p>
+          <p>{error}</p>
         </div>
       )}
       {!error && (
@@ -430,7 +465,7 @@ export default function ContentManager() {
                 {isUploading ? (
                   <div className="flex flex-col items-center">
                     <Loader2 className="w-8 h-8 text-yellow-400 animate-spin mb-2" />
-                    <p className="text-gray-600">Uploading... {uploadProgress}%</p>
+                    <p className="text-gray-600">Uploading...</p>
                   </div>
                 ) : (
                   <>
