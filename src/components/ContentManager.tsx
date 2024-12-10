@@ -33,6 +33,9 @@ interface Content {
       endDate: string;
       multipleChoice: boolean;
     };
+    gallery?: {
+      images: string[];
+    };
   };
 }
 
@@ -107,20 +110,20 @@ export default function ContentManager() {
     e.stopPropagation();
     setDragActive(false);
 
-    const file = e.dataTransfer.files?.[0];
-    if (file) {
-      await handleUpload(file);
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) {
+      await handleUpload(files);
     }
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      await handleUpload(file);
+    const files = e.target.files ? Array.from(e.target.files) : [];
+    if (files.length > 0) {
+      await handleUpload(files);
     }
   };
 
-  async function handleUpload(file: File) {
+  async function handleUpload(files: File[]) {
     if (!user?.email) {
       setError('No user email found');
       return;
@@ -131,20 +134,13 @@ export default function ContentManager() {
       return;
     }
 
-    if (contentType !== 'post' && !title) {
-      setError('Please fill in the title.');
-      return;
-    }
-
     if (!title || !description) {
       setError('Please fill in the title and description.');
       return;
     }
 
-    // If this is a post without video (e.g. a text-only post or poll), we might not need to upload a file.
-    // For gallery/audio/video we must have a file. If contentType is 'post' and pollEnabled or just a text post, file might be optional.
-    // Adjust logic as per your needs. Here we assume for 'video'/'gallery'/'audio' a file is required.
-    if ((contentType === 'video' || contentType === 'gallery' || contentType === 'audio') && !file) {
+    // Check file requirements
+    if ((contentType === 'video' || contentType === 'gallery' || contentType === 'audio') && files.length === 0) {
       setError('Please select a file to upload.');
       return;
     }
@@ -153,49 +149,30 @@ export default function ContentManager() {
       setIsUploading(true);
       setError(null);
 
-      let fileUrl: string | undefined;
-
-      // Only upload if contentType requires a file
-      if (contentType === 'video' || contentType === 'gallery' || contentType === 'audio') {
-        const fileName = `${Date.now()}-${file.name}`;
-        const fileType = file.type;
-
-        const presignRes = await fetch('/api/videos/get-presigned-url', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fileName, fileType })
-        });
-        const { url } = await presignRes.json();
-
-        if (!presignRes.ok || !url) {
-          throw new Error('Failed to get pre-signed URL');
-        }
-
-        // Upload the file directly to DigitalOcean Spaces using the pre-signed URL
-        const uploadRes = await fetch(url, {
-          method: 'PUT',
-          headers: { 'Content-Type': fileType },
-          body: file
-        });
-
-        if (!uploadRes.ok) {
-          throw new Error('Upload to Spaces failed');
-        }
-
-        const bucketName = 'my-site-uploads'; // Replace with your actual bucket name
-        const region = process.env.NEXT_PUBLIC_DO_REGION || 'nyc3';
-        fileUrl = `https://${bucketName}.${region}.digitaloceanspaces.com/${fileName}`;
-      }
-
-      // Construct mediaContent based on post/poll logic
       let mediaContent: any = {};
-      if (contentType === 'video' || contentType === 'gallery' || contentType === 'audio') {
+
+      if (contentType === 'video' || contentType === 'audio') {
+        // Expecting a single file for video/audio
+        const file = files[0];
+        const fileUrl = await uploadFileToSpaces(file);
         mediaContent = {
           video: { videoId: fileUrl }
         };
+      } else if (contentType === 'gallery') {
+        // Multiple images for gallery
+        // Upload each file and get URLs
+        const imageUrls: string[] = [];
+        for (const file of files) {
+          const fileUrl = await uploadFileToSpaces(file);
+          imageUrls.push(fileUrl);
+        }
+        mediaContent = {
+          gallery: {
+            images: imageUrls
+          }
+        };
       } else if (contentType === 'post') {
         if (pollEnabled) {
-          // This is a post with poll
           mediaContent = {
             poll: {
               options: pollOptions.reduce((acc, opt) => ({ ...acc, [opt]: 0 }), {}),
@@ -204,8 +181,7 @@ export default function ContentManager() {
             }
           };
         } else {
-          // Just a regular text-based post
-          mediaContent = {}; // No poll or video
+          mediaContent = {};
         }
       }
 
@@ -235,7 +211,6 @@ export default function ContentManager() {
 
       // Add to feed if it's a post
       if (contentType === 'post') {
-        // Add logic to add post to public/member feed
         await handleAddToFeed(contentData.data);
       }
 
@@ -245,6 +220,37 @@ export default function ContentManager() {
     } finally {
       setIsUploading(false);
     }
+  }
+
+  async function uploadFileToSpaces(file: File): Promise<string> {
+    // This function handles getting a presigned URL and uploading a single file to Spaces
+    const fileName = `${Date.now()}-${file.name}`;
+    const fileType = file.type;
+
+    const presignRes = await fetch('/api/videos/get-presigned-url', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fileName, fileType })
+    });
+    const { url } = await presignRes.json();
+
+    if (!presignRes.ok || !url) {
+      throw new Error('Failed to get pre-signed URL');
+    }
+
+    const uploadRes = await fetch(url, {
+      method: 'PUT',
+      headers: { 'Content-Type': fileType },
+      body: file
+    });
+
+    if (!uploadRes.ok) {
+      throw new Error('Upload to Spaces failed');
+    }
+
+    const bucketName = 'my-site-uploads'; // Replace with your actual bucket name
+    const region = process.env.NEXT_PUBLIC_DO_REGION || 'nyc3';
+    return `https://${bucketName}.${region}.digitaloceanspaces.com/${fileName}`;
   }
 
   const resetForm = () => {
@@ -273,8 +279,7 @@ export default function ContentManager() {
   };
 
   const handleCreatePoll = async () => {
-    // This function may not be needed now since we integrated poll into post logic.
-    // If still needed, keep it or remove it.
+    // Not needed now since integrated into handleUpload
   };
 
   const handleUpdate = async (contentId: string, updates: { title?: string; description?: string }) => {
@@ -304,7 +309,6 @@ export default function ContentManager() {
     }
   };
 
-  // New function to handle deletion of content
   const handleDeleteContent = async (contentId: string) => {
     try {
       setError(null);
@@ -327,15 +331,12 @@ export default function ContentManager() {
     }
   };
 
-  // Simulate adding posts to a feed
   const handleAddToFeed = async (postData: Content) => {
     try {
-      // Example: send a request to /api/feed to add post
       const response = await fetch('/api/feed', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
-          // auth if needed
         },
         body: JSON.stringify({ postId: postData.id })
       });
@@ -355,6 +356,14 @@ export default function ContentManager() {
       </div>
     );
   }
+
+  // Determine accept and multiple attributes for file input based on contentType
+  const fileAccept = contentType === 'video' ? 'video/*'
+    : contentType === 'gallery' ? 'image/*'
+    : contentType === 'audio' ? 'audio/*'
+    : undefined;
+
+  const fileMultiple = contentType === 'gallery'; // Allow multiple files for gallery
 
   return (
     <div className="bg-white rounded-lg shadow-lg p-6">
@@ -383,7 +392,6 @@ export default function ContentManager() {
                   key={type}
                   onClick={() => {
                     setContentType(type as any);
-                    // Reset poll if switching away from post
                     if (type !== 'post') {
                       setPollEnabled(false);
                     }
@@ -501,7 +509,7 @@ export default function ContentManager() {
               </div>
             )}
 
-            {/* File Upload Section for video/gallery/audio. For post (without poll), optional. */}
+            {/* File Upload Section for video/gallery/audio. For gallery allow multiple images */}
             {(contentType === 'video' || contentType === 'gallery' || contentType === 'audio') && (
               <div
                 className={`border-2 border-dashed rounded-lg p-8 ${
@@ -517,11 +525,8 @@ export default function ContentManager() {
                   type="file"
                   onChange={handleFileSelect}
                   className="hidden"
-                  accept={
-                    contentType === 'video' ? 'video/*' :
-                    contentType === 'gallery' ? 'image/*' :
-                    contentType === 'audio' ? 'audio/*' : undefined
-                  }
+                  accept={fileAccept}
+                  multiple={fileMultiple}
                 />
                 {isUploading ? (
                   <div className="flex flex-col items-center">
@@ -532,13 +537,13 @@ export default function ContentManager() {
                   <>
                     <Upload className="w-8 h-8 text-gray-400 mx-auto mb-4" />
                     <p className="text-gray-600 mb-2">
-                      Drag and drop your file here, or click to browse
+                      Drag and drop your file{fileMultiple ? 's' : ''} here, or click to browse
                     </p>
                     <button
                       onClick={() => fileInputRef.current?.click()}
                       className="bg-yellow-400 px-4 py-2 rounded-lg font-medium hover:bg-yellow-500 text-black"
                     >
-                      Select File
+                      Select File{fileMultiple ? 's' : ''}
                     </button>
                   </>
                 )}
@@ -549,17 +554,17 @@ export default function ContentManager() {
             <button
               onClick={async () => {
                 if (contentType === 'post' && pollEnabled) {
-                  // If poll is enabled, we handle it in handleUpload
-                  await handleUpload(new File([], ''));
+                  // If poll is enabled, handleUpload with a dummy file array if no file needed
+                  await handleUpload([]);
                 } else if (contentType === 'post' && !pollEnabled) {
-                  await handleUpload(new File([], ''));
+                  await handleUpload([]);
                 } else {
-                  // For video/gallery/audio, user selects file
-                  // If no file: handleUpload with selected file done in handleFileSelect
-                  if (fileInputRef.current?.files?.[0]) {
-                    await handleUpload(fileInputRef.current.files[0]);
-                  } else {
+                  // For video/gallery/audio:
+                  const files = fileInputRef.current?.files ? Array.from(fileInputRef.current.files) : [];
+                  if (files.length === 0) {
                     setError('Please select a file if required or ensure all fields are filled.');
+                  } else {
+                    await handleUpload(files);
                   }
                 }
               }}
