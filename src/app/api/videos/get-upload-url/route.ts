@@ -13,7 +13,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // Parse the request body for the title
+    // Parse request body
     const { title } = await req.json();
     if (!title) {
       return NextResponse.json(
@@ -27,7 +27,7 @@ export async function POST(req: Request) {
     // Get upload URL from Bunny.net
     const { id: videoId, uploadUrl } = await bunnyVideo.getUploadUrl(title);
 
-    // Return just the upload URL and videoId to the client
+    // Return the upload URL and videoId
     return NextResponse.json({ uploadUrl, videoId });
 
   } catch (error) {
