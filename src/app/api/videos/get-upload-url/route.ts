@@ -1,21 +1,20 @@
 import { NextResponse } from 'next/server';
-import { headers } from 'next/headers';
 import { bunnyVideo } from '@/lib/bunnyService';
 import { validateAdmin } from '@/lib/auth';
 
 export async function POST(req: Request) {
   try {
     // Validate admin access
-    const headersList = headers();
-    const authHeader = headersList.get('authorization');
-    
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const validation = await validateAdmin();
+    if (!validation.isValid) {
+      return NextResponse.json(
+        { error: validation.message || 'Unauthorized' },
+        { status: 401 }
+      );
     }
 
-    // Get title from request body
+    // Parse the request body for the title
     const { title } = await req.json();
-    
     if (!title) {
       return NextResponse.json(
         { error: 'Title is required' },
@@ -23,16 +22,13 @@ export async function POST(req: Request) {
       );
     }
 
-    // Get upload URL from Bunny.net
     console.log('Getting upload URL for video:', { title });
+
+    // Get upload URL from Bunny.net
     const { id: videoId, uploadUrl } = await bunnyVideo.getUploadUrl(title);
-    
-    // Return the upload URL and other necessary info
-    return NextResponse.json({
-      uploadUrl,
-      videoId,
-      accessKey: process.env.BUNNY_API_KEY
-    });
+
+    // Return just the upload URL and videoId to the client
+    return NextResponse.json({ uploadUrl, videoId });
 
   } catch (error) {
     console.error('Error getting upload URL:', error);
