@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { 
   Upload,
@@ -46,20 +46,11 @@ export default function ContentManager() {
   const [pollOptions, setPollOptions] = useState<string[]>(['', '']);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    if (user?.email) {
-      fetchContent();
-    }
-  }, [user?.email]);
-
-  const fetchContent = async () => {
+  const fetchContent = useCallback(async () => {
+    if (!user?.email) return;
     try {
       setIsLoading(true);
       setError(null);
-
-      if (!user?.email) {
-        throw new Error('No user email found');
-      }
 
       const response = await fetch('/api/content', {
         headers: {
@@ -84,7 +75,13 @@ export default function ContentManager() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [user?.email]);
+
+  useEffect(() => {
+    if (user?.email) {
+      fetchContent();
+    }
+  }, [user?.email, fetchContent]);
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
