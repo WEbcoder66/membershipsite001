@@ -1,14 +1,12 @@
-// src/components/Feed/FeedItem.tsx
 'use client';
 import React, { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { 
-  ThumbsUp, 
-  MessageCircle, 
-  Share2, 
+import {
+  ThumbsUp,
+  MessageCircle,
+  Share2,
   Bookmark,
   Flag,
-  Lock,
   ChevronDown,
   ChevronUp,
   Sparkles
@@ -64,7 +62,7 @@ export default function FeedItem({
       return (
         <AudioPlayer
           url={post.mediaContent.audio.url}
-          duration={post.mediaContent.audio.duration}
+          duration={post.mediaContent.audio.duration || 'Unknown'}
         />
       );
     }
@@ -77,6 +75,25 @@ export default function FeedItem({
           multipleChoice={post.mediaContent.poll.multipleChoice}
         />
       );
+    }
+
+    if (post.type === 'photo') {
+      const images = post.mediaContent?.gallery?.images;  
+      // Check that images is defined and not empty
+      if (images && images.length > 0) {
+        return (
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+            {images.map((imgUrl, idx) => (
+              <img
+                key={idx}
+                src={imgUrl}
+                alt={post.title || 'Photo post'}
+                className="w-full h-auto rounded"
+              />
+            ))}
+          </div>
+        );
+      }
     }
 
     return null;

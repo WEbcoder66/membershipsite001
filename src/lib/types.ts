@@ -2,7 +2,7 @@
 
 // Basic type definitions
 export type MembershipTier = 'basic' | 'premium' | 'allAccess';
-export type ContentType = 'post' | 'video' | 'gallery' | 'audio' | 'poll';
+export type ContentType = 'post' | 'video' | 'photo' | 'audio' | 'poll'; // replaced 'gallery' with 'photo'
 export type OrderStatus = 'pending' | 'processing' | 'completed' | 'cancelled';
 export type PaymentStatus = 'pending' | 'completed' | 'failed' | 'refunded';
 export type NotificationType = 'order' | 'content' | 'comment' | 'system';
@@ -32,7 +32,7 @@ export interface Content {
         url: string;
       }[];
     };
-    gallery?: {
+    gallery?: { // Still named 'gallery' internally for multiple images under photo type
       images: string[];
       captions?: string[];
     };

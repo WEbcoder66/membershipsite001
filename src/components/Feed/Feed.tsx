@@ -1,11 +1,10 @@
-// src/components/Feed/Feed.tsx
 'use client';
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { 
-  ThumbsUp, 
-  MessageCircle, 
-  Share2, 
+import {
+  ThumbsUp,
+  MessageCircle,
+  Share2,
   Bookmark,
   Flag,
   ChevronDown,
@@ -80,7 +79,7 @@ export default function Feed({ setActiveTab }: FeedProps) {
   }, []);
 
   const togglePostExpansion = (postId: string) => {
-    setExpandedPosts(prev => {
+    setExpandedPosts((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(postId)) {
         newSet.delete(postId);
@@ -92,7 +91,7 @@ export default function Feed({ setActiveTab }: FeedProps) {
   };
 
   const toggleComments = (postId: string) => {
-    setExpandedComments(prev => {
+    setExpandedComments((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(postId)) {
         newSet.delete(postId);
@@ -110,7 +109,7 @@ export default function Feed({ setActiveTab }: FeedProps) {
     }
 
     try {
-      setLikedPosts(prev => {
+      setLikedPosts((prev) => {
         const newSet = new Set(prev);
         if (newSet.has(postId)) {
           newSet.delete(postId);
@@ -142,6 +141,7 @@ export default function Feed({ setActiveTab }: FeedProps) {
         {content.map((post) => {
           const dateInfo = formatDate(post.createdAt);
           const postContent = post.content || post.description || '';
+          const images = post.mediaContent?.gallery?.images;
 
           return (
             <article key={post.id} className="bg-white rounded-lg shadow-lg overflow-hidden">
@@ -150,11 +150,15 @@ export default function Feed({ setActiveTab }: FeedProps) {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <h2 className="font-bold text-lg text-black">{post.title}</h2>
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      post.tier === 'premium' ? 'bg-yellow-100 text-yellow-800' : 
-                      post.tier === 'allAccess' ? 'bg-yellow-200 text-yellow-900' :
-                      'bg-gray-100 text-gray-800'
-                    }`}>
+                    <span
+                      className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        post.tier === 'premium'
+                          ? 'bg-yellow-100 text-yellow-800'
+                          : post.tier === 'allAccess'
+                          ? 'bg-yellow-200 text-yellow-900'
+                          : 'bg-gray-100 text-gray-800'
+                      }`}
+                    >
                       {post.tier.charAt(0).toUpperCase() + post.tier.slice(1)}
                     </span>
                     {dateInfo.isNew && (
@@ -181,6 +185,22 @@ export default function Feed({ setActiveTab }: FeedProps) {
                 </ErrorBoundary>
               )}
 
+              {/* Photo Content */}
+              {post.type === 'photo' && images && images.length > 0 && (
+                <div className="p-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                    {images.map((imgUrl, idx) => (
+                      <img
+                        key={idx}
+                        src={imgUrl}
+                        alt={post.title || 'Photo'}
+                        className="w-full h-auto rounded"
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Post Content */}
               <div className="p-4">
                 <p className={`text-gray-800 ${!expandedPosts.has(post.id) && 'line-clamp-3'}`}>
@@ -192,9 +212,13 @@ export default function Feed({ setActiveTab }: FeedProps) {
                     className="text-yellow-600 hover:text-yellow-700 text-sm mt-2 flex items-center gap-1"
                   >
                     {expandedPosts.has(post.id) ? (
-                      <>Show less <ChevronUp className="w-4 h-4" /></>
+                      <>
+                        Show less <ChevronUp className="w-4 h-4" />
+                      </>
                     ) : (
-                      <>Read more <ChevronDown className="w-4 h-4" /></>
+                      <>
+                        Read more <ChevronDown className="w-4 h-4" />
+                      </>
                     )}
                   </button>
                 )}
@@ -203,16 +227,18 @@ export default function Feed({ setActiveTab }: FeedProps) {
               {/* Post Actions */}
               <div className="px-4 py-3 border-t bg-gray-50 flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <button 
+                  <button
                     onClick={() => handleLike(post.id)}
                     className={`flex items-center gap-1 ${
-                      likedPosts.has(post.id) ? 'text-yellow-500' : 'text-gray-600 hover:text-yellow-500'
+                      likedPosts.has(post.id)
+                        ? 'text-yellow-500'
+                        : 'text-gray-600 hover:text-yellow-500'
                     }`}
                   >
                     <ThumbsUp className="w-5 h-5" />
                     <span>{(post.likes || 0) + (likedPosts.has(post.id) ? 1 : 0)}</span>
                   </button>
-                  <button 
+                  <button
                     onClick={() => toggleComments(post.id)}
                     className="flex items-center gap-1 text-gray-600 hover:text-yellow-500"
                   >

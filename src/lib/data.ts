@@ -45,7 +45,7 @@ export const posts: Post[] = [
   {
     id: '2',
     slug: 'studio-setup-tour',
-    type: 'gallery',
+    type: 'photo', // Changed from 'gallery' to 'photo'
     title: 'Studio Setup Tour',
     description: 'Take a tour of our newly upgraded studio!',
     content: 'Gallery content here...',
