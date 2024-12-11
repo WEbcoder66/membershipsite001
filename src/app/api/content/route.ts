@@ -6,7 +6,7 @@ import mongoose from 'mongoose';
 
 interface ILeanContent {
   _id: mongoose.Types.ObjectId;
-  type: 'video' | 'gallery' | 'audio' | 'post';
+  type: 'video' | 'photo' | 'audio' | 'post'; // Updated to include 'photo' and remove 'gallery'
   title: string;
   description?: string;
   createdAt: Date;
@@ -26,7 +26,6 @@ export async function GET() {
       .sort({ createdAt: -1 })
       .lean();
 
-    // Double assertion: we trust our schema ensures the fields match ILeanContent
     const allContent = rawResult as unknown as ILeanContent[];
 
     const formattedContent = allContent.map(item => ({
@@ -35,9 +34,9 @@ export async function GET() {
     }));
 
     return NextResponse.json({ success: true, data: formattedContent }, { status: 200 });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Content API GET Error:', error);
-    return NextResponse.json({ error: 'Failed to fetch content' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to fetch content', details: error?.message }, { status: 500 });
   }
 }
 
@@ -77,10 +76,9 @@ export async function POST(req: Request) {
         ...newContent.toObject()
       }
     }, { status: 201 });
-
-  } catch (error) {
+  } catch (error: any) {
     console.error('Content API POST Error:', error);
-    return NextResponse.json({ error: 'Failed to create content' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to create content', details: error?.message }, { status: 500 });
   }
 }
 
@@ -114,9 +112,8 @@ export async function DELETE(req: Request) {
       success: true,
       message: 'Content deleted successfully'
     }, { status: 200 });
-
-  } catch (error) {
+  } catch (error: any) {
     console.error('Delete error:', error);
-    return NextResponse.json({ error: 'Failed to delete content' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to delete content', details: error?.message }, { status: 500 });
   }
 }
