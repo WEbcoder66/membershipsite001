@@ -1,7 +1,7 @@
 // src/models/Content.ts
 import mongoose, { Document } from 'mongoose';
 
-type ContentType = 'video' | 'gallery' | 'audio' | 'post';
+type ContentType = 'video' | 'photo' | 'audio' | 'post';
 type MembershipTier = 'basic' | 'premium' | 'allAccess';
 
 interface VideoContent {
@@ -12,8 +12,8 @@ interface VideoContent {
   title?: string;
 }
 
-interface GalleryContent {
-  images: string[];
+interface PhotoContent {
+  images: string[]; // Can hold one or multiple image URLs
 }
 
 interface AudioContent {
@@ -38,9 +38,9 @@ interface IContent extends Document {
   isLocked: boolean;
   mediaContent?: {
     video?: VideoContent;
-    gallery?: GalleryContent;
+    photo?: PhotoContent;
     audio?: AudioContent;
-    poll?: PollContent; // poll now part of 'post' or any content if needed
+    poll?: PollContent;
   };
   likes: number;
   comments: number;
@@ -51,7 +51,7 @@ const ContentSchema = new mongoose.Schema<IContent>({
   type: {
     type: String,
     required: true,
-    enum: ['video', 'gallery', 'audio', 'post'] // Added 'post' here, removed 'poll'
+    enum: ['video', 'photo', 'audio', 'post']
   },
   title: {
     type: String,
@@ -89,8 +89,13 @@ const ContentSchema = new mongoose.Schema<IContent>({
       duration: String,
       title: String
     },
-    gallery: {
-      images: [String]
+    photo: {
+      images: {
+        type: [String],
+        required: function(this: IContent) {
+          return this.type === 'photo';
+        }
+      }
     },
     audio: {
       url: String,
@@ -124,6 +129,10 @@ ContentSchema.pre('save', function(this: IContent, next) {
   if (this.type === 'video' && (!this.mediaContent?.video?.videoId)) {
     return next(new Error('Video content requires a videoId'));
   }
+  // If needed, add similar checks for photo content here
+  // e.g., if (this.type === 'photo' && (!this.mediaContent?.photo?.images?.length)) {
+  //   return next(new Error('Photo content requires at least one image'));
+  // }
   next();
 });
 
