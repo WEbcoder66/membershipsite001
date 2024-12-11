@@ -11,7 +11,8 @@ import {
   Flag,
   ChevronDown,
   ChevronUp,
-  Sparkles
+  Sparkles,
+  Lock
 } from 'lucide-react';
 import { Content, MembershipTier } from '@/lib/types';
 import { formatDate, formatNumber } from '@/lib/utils';
@@ -44,6 +45,33 @@ export default function FeedItem({
   const [isExpanded, setIsExpanded] = useState(false);
   const dateInfo = formatDate(post.createdAt);
 
+  const hasAccess = user?.membershipTier
+    ? ['basic', 'premium', 'allAccess'].indexOf(user.membershipTier) >=
+      ['basic', 'premium', 'allAccess'].indexOf(post.tier)
+    : false;
+
+  const renderLockedOverlay = () => (
+    <div className="relative aspect-video bg-black rounded-lg overflow-hidden">
+      <div className="absolute inset-0 flex flex-col items-center justify-center text-white z-10 p-6">
+        <div className="w-16 h-16 rounded-full bg-black/30 flex items-center justify-center mb-4">
+          <Lock className="w-8 h-8" />
+        </div>
+        <h3 className="text-2xl font-bold mb-2 text-center">
+          {post.tier} Content
+        </h3>
+        <p className="text-center mb-6 text-lg text-gray-200">
+          Subscribe to {post.tier} to unlock this content
+        </p>
+        <button
+          onClick={() => setActiveTab('membership')}
+          className="bg-yellow-400 text-black px-8 py-3 rounded-lg font-semibold hover:bg-yellow-500 transition-colors"
+        >
+          Join to Unlock
+        </button>
+      </div>
+    </div>
+  );
+
   const renderContent = () => {
     // Poll
     if (post.type === 'poll' && post.mediaContent?.poll) {
@@ -59,6 +87,7 @@ export default function FeedItem({
 
     // Video
     if (post.type === 'video' && post.mediaContent?.video?.videoId) {
+      // VideoPlayer handles locking internally, so just return it
       return (
         <ErrorBoundary fallback={<div className="p-4 bg-red-50 text-red-700">Error loading video</div>}>
           <VideoPlayer
@@ -73,6 +102,12 @@ export default function FeedItem({
 
     // Audio
     if (post.type === 'audio' && post.mediaContent?.audio) {
+      // If no access logic needed here? Audio might also need locking if desired.
+      // If desired, we can do similar overlay logic for audio as well:
+      if (!hasAccess) {
+        return renderLockedOverlay();
+      }
+
       return (
         <AudioPlayer
           url={post.mediaContent.audio.url}
@@ -84,7 +119,10 @@ export default function FeedItem({
     // Photo
     if (post.type === 'photo') {
       const images = post.mediaContent?.photo?.images;
-      if (images && images.length > 0) {
+      if (!hasAccess) {
+        // Show locked overlay for photos
+        return renderLockedOverlay();
+      } else if (images && images.length > 0) {
         return (
           <div className="p-4">
             <PhotoGallery
