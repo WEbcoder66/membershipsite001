@@ -1,5 +1,5 @@
-// src/components/PhotoGallery.tsx
 import React, { useState } from 'react';
+import Image from 'next/image';
 
 interface PhotoGalleryProps {
   images: string[];
@@ -34,14 +34,15 @@ const PhotoGallery: React.FC<PhotoGalleryProps> = ({ images, title, description 
         </div>
       )}
 
-      <div className="relative bg-black">
-        <img
+      <div className="relative bg-black" style={{ minHeight: 300 }}>
+        <Image
           src={currentImage}
           alt={`Image ${currentIndex + 1}`}
-          className="w-full h-auto max-h-[500px] object-contain bg-black"
+          fill
+          style={{ objectFit: 'contain', backgroundColor: 'black' }}
+          priority
         />
 
-        {/* Navigation Arrows */}
         {images.length > 1 && (
           <>
             <button
@@ -52,7 +53,7 @@ const PhotoGallery: React.FC<PhotoGalleryProps> = ({ images, title, description 
                 <path d="M15 18l-6-6 6-6" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </button>
-            
+
             <button
               onClick={nextImage}
               className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-gray-700 hover:bg-gray-800 text-white rounded-full p-2 shadow focus:outline-none"
@@ -64,7 +65,6 @@ const PhotoGallery: React.FC<PhotoGalleryProps> = ({ images, title, description 
           </>
         )}
 
-        {/* Image Count */}
         {images.length > 1 && (
           <div className="absolute top-2 right-2 bg-gray-900 bg-opacity-75 text-white text-sm py-1 px-2 rounded">
             {currentIndex + 1} / {images.length}
@@ -72,7 +72,6 @@ const PhotoGallery: React.FC<PhotoGalleryProps> = ({ images, title, description 
         )}
       </div>
 
-      {/* Thumbnails */}
       {images.length > 1 && (
         <div className="flex gap-2 p-4 overflow-x-auto border-b">
           {images.map((img, idx) => (
@@ -83,17 +82,19 @@ const PhotoGallery: React.FC<PhotoGalleryProps> = ({ images, title, description 
                 idx === currentIndex ? 'border-blue-500' : 'border-transparent'
               }`}
             >
-              <img
-                src={img}
-                alt={`Thumbnail ${idx + 1}`}
-                className="object-cover w-full h-full"
-              />
+              <div className="relative w-full h-full">
+                <Image
+                  src={img}
+                  alt={`Thumbnail ${idx + 1}`}
+                  fill
+                  style={{ objectFit: 'cover' }}
+                />
+              </div>
             </button>
           ))}
         </div>
       )}
 
-      {/* Description */}
       {description && (
         <div className="p-4">
           <p className="text-gray-700">{description}</p>

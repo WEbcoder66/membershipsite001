@@ -1,7 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
-    domains: ['localhost'],
+    domains: [
+      'localhost',
+      'my-site-uploads.nyc3.digitaloceanspaces.com' // Add your DigitalOcean Spaces domain here
+    ],
     remotePatterns: [
       {
         protocol: 'https',
@@ -15,13 +18,13 @@ const nextConfig = {
   },
   // Enable static exports if needed
   // output: 'export',
-  
+
   // Server configuration
   serverRuntimeConfig: {
     // Will only be available on the server side
     mySecret: process.env.MY_SECRET,
   },
-  
+
   // Both client and server
   publicRuntimeConfig: {
     // Will be available on both server and client
@@ -30,8 +33,7 @@ const nextConfig = {
 
   // Customize webpack config if needed
   webpack: (config, { buildId, dev, isServer, defaultLoaders, webpack }) => {
-    // Note: we provide webpack above so you should not `require` it
-    // Perform customizations to webpack config
+    // Perform customizations to webpack config here
     
     // Important: return the modified config
     return config;
@@ -50,7 +52,6 @@ const nextConfig = {
   async headers() {
     return [
       {
-        // Apply these headers to all routes
         source: '/:path*',
         headers: [
           {
