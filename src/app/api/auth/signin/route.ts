@@ -25,12 +25,14 @@ export async function POST(req: Request) {
     { expiresIn: '1h' }
   );
 
-  const response = NextResponse.json({ success: true });
-  response.cookies.set('token', token, {
-    httpOnly: true,
-    secure: true,
-    path: '/',
-    maxAge: 3600
-  });
-  return response;
+ const response = NextResponse.json({ success: true });
+response.cookies.set('token', token, {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production', // true in production, false in local dev
+  path: '/',
+  sameSite: 'lax',
+  maxAge: 3600
+});
+return response;
+
 }
