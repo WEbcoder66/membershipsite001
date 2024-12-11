@@ -1,3 +1,4 @@
+// src/app/api/content/route.ts
 import { NextResponse } from 'next/server';
 import { validateAdmin } from '@/lib/auth';
 import dbConnect from '@/lib/mongodb';
@@ -85,12 +86,11 @@ export async function POST(req: Request) {
 export async function DELETE(req: Request) {
   try {
     await dbConnect();
-    
     const { searchParams } = new URL(req.url);
     const contentId = searchParams.get('id');
 
     if (!contentId) {
-      return NextResponse.json({ error: 'Missing content ID' }, { status: 400 });
+      return NextResponse.json({ error: 'Missing content ID' }, { status:400 });
     }
 
     // Validate admin access
@@ -118,7 +118,6 @@ export async function DELETE(req: Request) {
   }
 }
 
-// NEW PATCH HANDLER FOR EDITING CONTENT
 export async function PATCH(req: Request) {
   try {
     await dbConnect();
@@ -166,6 +165,6 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ success: true, data: { id: updated._id.toString(), ...updated.toObject() } }, { status: 200 });
   } catch (error: any) {
     console.error('Content PATCH error:', error);
-    return NextResponse.json({ error: 'Failed to update content' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to update content', details: error?.message }, { status: 500 });
   }
 }

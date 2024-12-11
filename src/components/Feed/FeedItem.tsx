@@ -44,6 +44,18 @@ export default function FeedItem({
   const dateInfo = formatDate(post.createdAt);
 
   const renderContent = () => {
+    // Check if post has a poll
+    if (post.type === 'post' && post.mediaContent?.poll) {
+      return (
+        <PollComponent
+          options={post.mediaContent.poll.options}
+          endDate={post.mediaContent.poll.endDate}
+          multipleChoice={post.mediaContent.poll.multipleChoice}
+          postId={post.id}
+        />
+      );
+    }
+
     if (post.type === 'video' && post.mediaContent?.video?.videoId) {
       return (
         <ErrorBoundary fallback={<div>Error loading video</div>}>
@@ -63,17 +75,6 @@ export default function FeedItem({
         <AudioPlayer
           url={post.mediaContent.audio.url}
           duration={post.mediaContent.audio.duration || 'Unknown'}
-        />
-      );
-    }
-
-    if (post.type === 'poll' && post.mediaContent?.poll) {
-      return (
-        <PollComponent
-          options={post.mediaContent.poll.options}
-          endDate={post.mediaContent.poll.endDate}
-          multipleChoice={post.mediaContent.poll.multipleChoice}
-          postId={post.id} // Ensure postId is passed here
         />
       );
     }
