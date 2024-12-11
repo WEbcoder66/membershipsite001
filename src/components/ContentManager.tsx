@@ -33,8 +33,12 @@ interface Content {
       endDate: string;
       multipleChoice: boolean;
     };
-    gallery?: {
+    photo?: {
       images: string[];
+    };
+    audio?: {
+      url?: string;
+      duration?: string;
     };
   };
 }
@@ -155,6 +159,7 @@ export default function ContentManager() {
         // Expecting a single file for video/audio
         const file = files[0];
         const fileUrl = await uploadFileToSpaces(file);
+        // For video or audio, you might store the URL or videoId as needed
         mediaContent = {
           video: { videoId: fileUrl }
         };
@@ -165,8 +170,9 @@ export default function ContentManager() {
           const fileUrl = await uploadFileToSpaces(file);
           imageUrls.push(fileUrl);
         }
+        // Update here: Use 'photo' instead of 'gallery'
         mediaContent = {
-          gallery: {
+          photo: {
             images: imageUrls
           }
         };
@@ -191,7 +197,6 @@ export default function ContentManager() {
           'Authorization': `Bearer ${user?.email}`
         },
         body: JSON.stringify({
-          // Use 'photo' instead of 'gallery'
           type: contentType,
           title,
           description,

@@ -27,7 +27,7 @@ export async function POST(req: Request) {
       Bucket: bucketName,
       Key: fileName,
       ContentType: fileType,
-      ACL: 'public-read' // Add this line to make the file publicly accessible
+      ACL: 'public-read' // Ensure the file is publicly accessible
     });
 
     const signedUrl = await getSignedUrl(s3, command, { expiresIn: 3600 }); // URL valid for 1 hour
