@@ -1,3 +1,5 @@
+// src/components/ContentManager.tsx
+
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
@@ -19,22 +21,17 @@ interface Content {
   id: string;
   title: string;
   description?: string;
-  type: 'video' | 'photo' | 'audio' | 'post';
+  type: 'video' | 'photo' | 'audio' | 'post' | 'poll';
   tier: 'basic' | 'premium' | 'allAccess';
   createdAt: string;
-  mediaContent?: {
-    video?: { videoId: string; url?: string; thumbnail?: string };
-    poll?: { options: Record<string, number>; endDate: string; multipleChoice: boolean };
-    photo?: { images: string[] };
-    audio?: { url?: string; duration?: string };
-  };
+  mediaContent?: Record<string, any>;
 }
 
 export default function ContentManager() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'create' | 'manage'>('create');
-  
-  const [contentType, setContentType] = useState<'video' | 'photo' | 'audio' | 'post'>('video');
+
+  const [contentType, setContentType] = useState<'video' | 'photo' | 'audio' | 'post' | 'poll'>('video');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [membershipTier, setMembershipTier] = useState<'basic' | 'premium' | 'allAccess'>('basic');
@@ -43,13 +40,11 @@ export default function ContentManager() {
   const [content, setContent] = useState<Content[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Poll states for creation
+  // Poll states for poll content
   const [pollOptions, setPollOptions] = useState<string[]>(['', '']);
-  const [pollEnabled, setPollEnabled] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Editing state (for Manage Content)
   const [editingContent, setEditingContent] = useState<{
     id: string;
     title: string;
@@ -101,13 +96,11 @@ export default function ContentManager() {
       fileInputRef.current.value = '';
     }
     setPollOptions(['', '']);
-    setPollEnabled(false);
     setError(null);
     setContentType('video');
     setMembershipTier('basic');
   };
 
-  // Handle Creating New Content
   async function uploadFileToSpaces(file: File): Promise<string> {
     const fileName = `${Date.now()}-${file.name}`;
     const fileType = file.type;
@@ -144,14 +137,18 @@ export default function ContentManager() {
       return;
     }
 
-    if (contentType === 'post' && pollEnabled && pollOptions.filter(opt => opt.trim()).length < 2) {
-      setError('Please provide at least 2 poll options for the poll.');
-      return;
-    }
-
     if (!title || !description) {
       setError('Please fill in the title and description.');
       return;
+    }
+
+    if (contentType === 'poll') {
+      // For poll, need at least two options
+      const validOptions = pollOptions.filter(opt => opt.trim());
+      if (validOptions.length < 2) {
+        setError('Please provide at least 2 poll options for the poll.');
+        return;
+      }
     }
 
     if ((contentType === 'video' || contentType === 'photo' || contentType === 'audio') && files.length === 0) {
@@ -169,7 +166,7 @@ export default function ContentManager() {
         const file = files[0];
         const fileUrl = await uploadFileToSpaces(file);
         mediaContent = {
-          video: { videoId: fileUrl }
+          [contentType]: { videoId: fileUrl }
         };
       } else if (contentType === 'photo') {
         const imageUrls: string[] = [];
@@ -183,22 +180,21 @@ export default function ContentManager() {
           }
         };
       } else if (contentType === 'post') {
-        if (pollEnabled) {
-          const validOptions = pollOptions.filter(opt => opt.trim());
-          const pollObject = validOptions.reduce((acc: any, opt: string) => {
-            acc[opt] = 0;
-            return acc;
-          }, {});
-          mediaContent = {
-            poll: {
-              options: pollObject,
-              endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-              multipleChoice: false
-            }
-          };
-        } else {
-          mediaContent = {};
-        }
+        // Just text content, no file needed
+        mediaContent = {};
+      } else if (contentType === 'poll') {
+        const validOptions = pollOptions.filter(opt => opt.trim());
+        const pollObject = validOptions.reduce((acc: any, opt: string) => {
+          acc[opt] = 0;
+          return acc;
+        }, {});
+        mediaContent = {
+          poll: {
+            options: pollObject,
+            endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+            multipleChoice: false
+          }
+        };
       }
 
       const contentRes = await fetch('/api/content', {
@@ -218,15 +214,15 @@ export default function ContentManager() {
 
       const contentData = await contentRes.json();
       if (!contentRes.ok) {
-        throw new Error(contentData.error || 'Failed to save content metadata');
+        throw new Error(contentData.error || 'Failed to create content');
       }
 
       alert('Content uploaded and saved successfully!');
       resetForm();
       fetchContent();
 
-      // Add to feed if it's a post or photo
-      if (contentType === 'post' || contentType === 'photo') {
+      // If it's post or photo or poll, add to feed
+      if (contentType === 'post' || contentType === 'photo' || contentType === 'poll') {
         await handleAddToFeed(contentData.data);
       }
 
@@ -303,7 +299,7 @@ export default function ContentManager() {
           title: editingContent.title,
           description: editingContent.description,
           tier: editingContent.tier,
-          pollOptions: undefined // not editing poll here
+          pollOptions: [] // Not editing poll here directly
         })
       });
       if (!response.ok) {
@@ -319,7 +315,6 @@ export default function ContentManager() {
     }
   };
 
-  // Tab UI: 'Create Content' and 'Manage Content'
   const fileAccept = contentType === 'video' ? 'video/*'
     : contentType === 'photo' ? 'image/*'
     : contentType === 'audio' ? 'audio/*'
@@ -360,21 +355,19 @@ export default function ContentManager() {
           {/* Content Type Selection */}
           <div className="mb-6">
             <label className="block text-sm font-medium text-gray-700 mb-2">Content Type</label>
-            <div className="grid grid-cols-4 gap-4">
+            <div className="grid grid-cols-5 gap-4">
               {[
                 { type: 'video' as const, icon: Video, label: 'Video' },
                 { type: 'photo' as const, icon: ImageIcon, label: 'Photo' },
                 { type: 'audio' as const, icon: Music, label: 'Audio' },
-                { type: 'post' as const, icon: MessageSquare, label: 'Post' }
+                { type: 'post' as const, icon: MessageSquare, label: 'Post' },
+                { type: 'poll' as const, icon: MessageSquare, label: 'Poll' }
               ].map(({ type, icon: Icon, label }) => (
                 <button
                   key={type}
                   onClick={() => {
                     setContentType(type);
-                    if (type !== 'post') {
-                      setPollEnabled(false);
-                      setPollOptions(['', '']);
-                    }
+                    setPollOptions(['','']);
                   }}
                   className={`p-4 rounded-lg border-2 flex flex-col items-center gap-2 transition-colors ${
                     contentType === type
@@ -434,55 +427,44 @@ export default function ContentManager() {
             </select>
           </div>
 
-          {/* Poll Options for Post Type */}
-          {contentType === 'post' && (
+          {/* Poll Options if contentType === 'poll' */}
+          {contentType === 'poll' && (
             <div className="mb-6">
               <label className="block text-sm font-medium text-gray-700 mb-2">Poll Options</label>
-              <div className="flex items-center gap-2 mb-4">
-                <input
-                  type="checkbox"
-                  checked={pollEnabled}
-                  onChange={() => setPollEnabled(!pollEnabled)}
-                />
-                <span className="text-gray-700">Enable Poll for this Post</span>
-              </div>
-
-              {pollEnabled && (
-                <div className="space-y-4">
-                  {pollOptions.map((option, index) => (
-                    <div key={index} className="flex gap-2">
-                      <input
-                        type="text"
-                        value={option}
-                        onChange={(e) => {
-                          const newOptions = [...pollOptions];
-                          newOptions[index] = e.target.value;
-                          setPollOptions(newOptions);
+              <div className="space-y-4">
+                {pollOptions.map((option, index) => (
+                  <div key={index} className="flex gap-2">
+                    <input
+                      type="text"
+                      value={option}
+                      onChange={(e) => {
+                        const newOptions = [...pollOptions];
+                        newOptions[index] = e.target.value;
+                        setPollOptions(newOptions);
+                      }}
+                      className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400 text-black"
+                      placeholder={`Option ${index + 1}`}
+                    />
+                    {index >= 2 && (
+                      <button
+                        onClick={() => {
+                          setPollOptions(pollOptions.filter((_, i) => i !== index));
                         }}
-                        className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400 text-black"
-                        placeholder={`Option ${index + 1}`}
-                      />
-                      {index >= 2 && (
-                        <button
-                          onClick={() => {
-                            setPollOptions(pollOptions.filter((_, i) => i !== index));
-                          }}
-                          className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
-                        >
-                          <X className="w-5 h-5" />
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                  <button
-                    onClick={() => setPollOptions([...pollOptions, ''])}
-                    className="flex items-center gap-2 text-yellow-600 hover:text-yellow-700"
-                  >
-                    <PlusCircle className="w-4 h-4" />
-                    Add Option
-                  </button>
-                </div>
-              )}
+                        className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+                <button
+                  onClick={() => setPollOptions([...pollOptions, ''])}
+                  className="flex items-center gap-2 text-yellow-600 hover:text-yellow-700"
+                >
+                  <PlusCircle className="w-4 h-4" />
+                  Add Option
+                </button>
+              </div>
             </div>
           )}
 
@@ -524,14 +506,9 @@ export default function ContentManager() {
           <button
             onClick={async () => {
               const files = fileInputRef.current?.files ? Array.from(fileInputRef.current.files) : [];
-              if (contentType === 'post' && !pollEnabled) {
-                // No file needed for a simple post
-                await handleCreateContent([]);
-              } else {
-                await handleCreateContent(files);
-              }
+              await handleCreateContent(files);
             }}
-            disabled={isUploading || !title || !description || (contentType === 'post' && pollEnabled && pollOptions.filter(opt => opt.trim()).length < 2)}
+            disabled={isUploading}
             className="w-full mt-4 bg-yellow-400 text-black py-3 rounded-lg font-medium hover:bg-yellow-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isUploading ? 'Uploading...' : 'Upload Content'}

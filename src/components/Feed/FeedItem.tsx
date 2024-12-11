@@ -1,5 +1,6 @@
 // src/components/Feed/FeedItem.tsx
 'use client';
+
 import React, { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import {
@@ -12,7 +13,7 @@ import {
   ChevronUp,
   Sparkles
 } from 'lucide-react';
-import { Post, MembershipTier } from '@/lib/types';
+import { Content, MembershipTier } from '@/lib/types';
 import { formatDate, formatNumber } from '@/lib/utils';
 import VideoPlayer from '@/components/VideoPlayer';
 import AudioPlayer from './AudioPlayer';
@@ -21,7 +22,7 @@ import ErrorBoundary from '@/components/ErrorBoundary';
 import PhotoGallery from '@/components/PhotoGallery';
 
 interface FeedItemProps {
-  post: Post;
+  post: Content; // Changed from Post to Content
   onLike: (postId: string) => void;
   onComment: (postId: string) => void;
   onShare: (postId: string) => void;
@@ -44,8 +45,8 @@ export default function FeedItem({
   const dateInfo = formatDate(post.createdAt);
 
   const renderContent = () => {
-    // Check if post has a poll
-    if (post.type === 'post' && post.mediaContent?.poll) {
+    // Check if post is a poll
+    if (post.type === 'poll' && post.mediaContent?.poll) {
       return (
         <PollComponent
           options={post.mediaContent.poll.options}
@@ -58,7 +59,7 @@ export default function FeedItem({
 
     if (post.type === 'video' && post.mediaContent?.video?.videoId) {
       return (
-        <ErrorBoundary fallback={<div>Error loading video</div>}>
+        <ErrorBoundary fallback={<div className="p-4 bg-red-50 text-red-700">Error loading video</div>}>
           <VideoPlayer
             videoId={post.mediaContent.video.videoId}
             thumbnail={post.mediaContent.video.thumbnail}
@@ -94,6 +95,7 @@ export default function FeedItem({
       }
     }
 
+    // If no special media, just return null
     return null;
   };
 
@@ -126,27 +128,25 @@ export default function FeedItem({
       {renderContent()}
 
       {/* Description */}
-      <div className="p-4">
-        {post.description && (
-          <>
-            <p className={`text-gray-700 ${!isExpanded && 'line-clamp-2'}`}>
-              {post.description}
-            </p>
-            {post.description.length > 150 && (
-              <button
-                onClick={() => setIsExpanded(!isExpanded)}
-                className="text-yellow-600 hover:text-yellow-700 text-sm mt-2 flex items-center gap-1"
-              >
-                {isExpanded ? (
-                  <>Show less <ChevronUp className="w-4 h-4" /></>
-                ) : (
-                  <>Read more <ChevronDown className="w-4 h-4" /></>
-                )}
-              </button>
-            )}
-          </>
-        )}
-      </div>
+      {post.description && (
+        <div className="p-4">
+          <p className={`text-gray-700 ${!isExpanded && 'line-clamp-2'}`}>
+            {post.description}
+          </p>
+          {post.description.length > 150 && (
+            <button
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="text-yellow-600 hover:text-yellow-700 text-sm mt-2 flex items-center gap-1"
+            >
+              {isExpanded ? (
+                <>Show less <ChevronUp className="w-4 h-4" /></>
+              ) : (
+                <>Read more <ChevronDown className="w-4 h-4" /></>
+              )}
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Actions */}
       <div className="px-4 py-3 border-t bg-gray-50 flex items-center justify-between">
@@ -156,14 +156,14 @@ export default function FeedItem({
             className="flex items-center gap-1 text-gray-600 hover:text-yellow-600"
           >
             <ThumbsUp className="w-5 h-5" />
-            <span>{formatNumber(post.likes)}</span>
+            <span>{formatNumber(post.likes || 0)}</span>
           </button>
           <button
             onClick={() => onComment(post.id)}
             className="flex items-center gap-1 text-gray-600 hover:text-yellow-600"
           >
             <MessageCircle className="w-5 h-5" />
-            <span>{formatNumber(post.comments)}</span>
+            <span>{formatNumber(post.comments || 0)}</span>
           </button>
           <button
             onClick={() => onShare(post.id)}

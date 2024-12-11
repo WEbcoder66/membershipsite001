@@ -7,7 +7,7 @@ import mongoose from 'mongoose';
 
 interface ILeanContent {
   _id: mongoose.Types.ObjectId;
-  type: 'video' | 'photo' | 'audio' | 'post';
+  type: 'video' | 'photo' | 'audio' | 'post' | 'poll';
   title: string;
   description?: string;
   createdAt: Date;
@@ -140,21 +140,23 @@ export async function PATCH(req: Request) {
     if (description !== undefined) updateData.description = description;
     if (tier) updateData.tier = tier;
 
-    // Handle poll updates if present
-    if (Array.isArray(pollOptions) && pollOptions.filter((opt: string) => opt.trim()).length >= 2) {
+    // If pollOptions are provided and we're dealing with a poll or want to update poll
+    if (Array.isArray(pollOptions)) {
       const validOptions = pollOptions.filter((opt: string) => opt.trim());
-      const pollObject = validOptions.reduce((acc: any, opt: string) => {
-        acc[opt] = 0;
-        return acc;
-      }, {});
-      updateData['mediaContent.poll'] = {
-        options: pollObject,
-        endDate: new Date(Date.now() + 7*24*60*60*1000),
-        multipleChoice: false
-      };
-    } else {
-      // If no valid poll or less than 2 options, remove poll
-      updateData['mediaContent.poll'] = undefined;
+      if (validOptions.length >= 2) {
+        const pollObject = validOptions.reduce((acc: any, opt: string) => {
+          acc[opt] = 0;
+          return acc;
+        }, {});
+        updateData['mediaContent.poll'] = {
+          options: pollObject,
+          endDate: new Date(Date.now() + 7*24*60*60*1000),
+          multipleChoice: false
+        };
+      } else {
+        // If no valid poll or less than 2 options, remove poll
+        updateData['mediaContent.poll'] = undefined;
+      }
     }
 
     const updated = await Content.findByIdAndUpdate(contentId, updateData, { new: true });
