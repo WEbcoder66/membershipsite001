@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import Image from 'next/image';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 
@@ -47,7 +47,7 @@ const PhotoGallery: React.FC<PhotoGalleryProps> = ({ images, title, description 
       )}
 
       <div className="relative bg-black" style={{ minHeight: 300 }}>
-        {/* Main Displayed Image - Click to enlarge */}
+        {/* Main displayed image */}
         <div
           className="w-full h-[300px] sm:h-[500px] md:h-[600px] lg:h-[700px] relative cursor-pointer flex items-center justify-center"
           onClick={openFullscreen}
@@ -61,7 +61,7 @@ const PhotoGallery: React.FC<PhotoGalleryProps> = ({ images, title, description 
           />
         </div>
 
-        {/* Navigation Arrows (if multiple images) */}
+        {/* Navigation Arrows (only if multiple images) */}
         {images.length > 1 && (
           <>
             <button
@@ -80,7 +80,7 @@ const PhotoGallery: React.FC<PhotoGalleryProps> = ({ images, title, description 
           </>
         )}
 
-        {/* Image Count */}
+        {/* Image count */}
         {images.length > 1 && (
           <div className="absolute top-2 right-2 bg-gray-900 bg-opacity-75 text-white text-sm py-1 px-2 rounded">
             {currentIndex + 1} / {images.length}
@@ -121,25 +121,24 @@ const PhotoGallery: React.FC<PhotoGalleryProps> = ({ images, title, description 
       {/* Enlarged View (Overlay) */}
       {isFullscreen && (
         <div
-          className="fixed inset-0 z-50 bg-black bg-opacity-80 flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 bg-black bg-opacity-80 flex items-center justify-center p-4 cursor-pointer"
           onClick={closeFullscreen}
         >
           <div
-            className={`relative transition-transform transition-opacity duration-300 transform scale-95 opacity-0
-             ${isFullscreen ? 'scale-100 opacity-100' : ''}`}
+            className="relative"
             onClick={(e) => e.stopPropagation()}
             style={{
-              maxWidth: '90vw',
-              maxHeight: '90vh',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              position: 'relative',
+              // Max dimensions to avoid scrolling
+              maxWidth: '90vw',
+              maxHeight: '90vh'
             }}
           >
             {/* Close Button */}
             <button
-              className="absolute top-2 right-2 text-white bg-black bg-opacity-50 rounded-full p-2 hover:bg-opacity-70"
+              className="absolute top-2 right-2 text-white bg-black bg-opacity-50 rounded-full p-2 hover:bg-opacity-70 z-10"
               onClick={closeFullscreen}
             >
               <X className="w-5 h-5" />
@@ -153,7 +152,7 @@ const PhotoGallery: React.FC<PhotoGalleryProps> = ({ images, title, description 
                     e.stopPropagation();
                     prevImage();
                   }}
-                  className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-black bg-opacity-50 hover:bg-opacity-75 text-white rounded-full p-2"
+                  className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-black bg-opacity-50 hover:bg-opacity-75 text-white rounded-full p-2 z-10"
                 >
                   <ChevronLeft className="w-5 h-5" />
                 </button>
@@ -163,30 +162,29 @@ const PhotoGallery: React.FC<PhotoGalleryProps> = ({ images, title, description 
                     e.stopPropagation();
                     nextImage();
                   }}
-                  className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-black bg-opacity-50 hover:bg-opacity-75 text-white rounded-full p-2"
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-black bg-opacity-50 hover:bg-opacity-75 text-white rounded-full p-2 z-10"
                 >
                   <ChevronRight className="w-5 h-5" />
                 </button>
               </>
             )}
 
-            {/* Enlarged Image */}
-            <div
-              className="relative flex items-center justify-center"
-              style={{ maxWidth: '100%', maxHeight: '100%' }}
-            >
-              <Image
-                src={currentImage}
-                alt={`Enlarged Image ${currentIndex + 1}`}
-                style={{ objectFit: 'contain' }}
-                fill
-                sizes="(max-width: 90vw) 90vw, (max-height: 90vh) 90vh"
-              />
-            </div>
+            {/* Enlarged Image: Use fixed dimensions and contain */}
+            <Image
+              src={currentImage}
+              alt={`Enlarged Image ${currentIndex + 1}`}
+              width={1200} // Arbitrary large dimension
+              height={800} // Arbitrary large dimension
+              style={{
+                objectFit: 'contain',
+                maxWidth: '90vw',
+                maxHeight: '90vh'
+              }}
+            />
 
             {/* Image Count in Enlarged View */}
             {images.length > 1 && (
-              <div className="absolute bottom-2 right-2 text-white text-sm bg-black bg-opacity-50 py-1 px-2 rounded">
+              <div className="absolute bottom-2 right-2 text-white text-sm bg-black bg-opacity-50 py-1 px-2 rounded z-10">
                 {currentIndex + 1} / {images.length}
               </div>
             )}
