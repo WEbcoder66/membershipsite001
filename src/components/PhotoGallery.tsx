@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 
@@ -47,7 +47,7 @@ const PhotoGallery: React.FC<PhotoGalleryProps> = ({ images, title, description 
       )}
 
       <div className="relative bg-black" style={{ minHeight: 300 }}>
-        {/* Main Displayed Image */}
+        {/* Main Displayed Image - Click to enlarge */}
         <div
           className="w-full h-[300px] sm:h-[500px] md:h-[600px] lg:h-[700px] relative cursor-pointer flex items-center justify-center"
           onClick={openFullscreen}
@@ -61,7 +61,7 @@ const PhotoGallery: React.FC<PhotoGalleryProps> = ({ images, title, description 
           />
         </div>
 
-        {/* Navigation Arrows (only show if multiple images) */}
+        {/* Navigation Arrows (if multiple images) */}
         {images.length > 1 && (
           <>
             <button
@@ -88,7 +88,7 @@ const PhotoGallery: React.FC<PhotoGalleryProps> = ({ images, title, description 
         )}
       </div>
 
-      {/* Thumbnails for multiple images */}
+      {/* Thumbnails */}
       {images.length > 1 && (
         <div className="flex gap-2 p-4 overflow-x-auto border-b">
           {images.map((img, idx) => (
@@ -118,61 +118,75 @@ const PhotoGallery: React.FC<PhotoGalleryProps> = ({ images, title, description 
         </div>
       )}
 
-      {/* Fullscreen Overlay */}
+      {/* Enlarged View (Overlay) */}
       {isFullscreen && (
         <div
-          className="fixed inset-0 z-50 bg-black bg-opacity-90 flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 bg-black bg-opacity-80 flex items-center justify-center p-4"
           onClick={closeFullscreen}
         >
-          <button
-            className="absolute top-4 right-4 text-white bg-black bg-opacity-50 rounded-full p-2 hover:bg-opacity-70"
-            onClick={(e) => {
-              e.stopPropagation();
-              closeFullscreen();
+          <div
+            className={`relative transition-transform transition-opacity duration-300 transform scale-95 opacity-0
+             ${isFullscreen ? 'scale-100 opacity-100' : ''}`}
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: '90vw',
+              maxHeight: '90vh',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              position: 'relative',
             }}
           >
-            <X className="w-5 h-5" />
-          </button>
+            {/* Close Button */}
+            <button
+              className="absolute top-2 right-2 text-white bg-black bg-opacity-50 rounded-full p-2 hover:bg-opacity-70"
+              onClick={closeFullscreen}
+            >
+              <X className="w-5 h-5" />
+            </button>
 
-          {images.length > 1 && (
-            <>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  prevImage();
-                }}
-                className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-black bg-opacity-50 hover:bg-opacity-75 text-white rounded-full p-2"
-              >
-                <ChevronLeft className="w-5 h-5" />
-              </button>
+            {/* Navigation Arrows in Enlarged View */}
+            {images.length > 1 && (
+              <>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    prevImage();
+                  }}
+                  className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-black bg-opacity-50 hover:bg-opacity-75 text-white rounded-full p-2"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
 
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  nextImage();
-                }}
-                className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-black bg-opacity-50 hover:bg-opacity-75 text-white rounded-full p-2"
-              >
-                <ChevronRight className="w-5 h-5" />
-              </button>
-            </>
-          )}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    nextImage();
+                  }}
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-black bg-opacity-50 hover:bg-opacity-75 text-white rounded-full p-2"
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              </>
+            )}
 
-          <div
-            className="relative max-w-full max-h-full"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="relative w-auto h-auto max-h-full max-w-full flex items-center justify-center">
+            {/* Enlarged Image */}
+            <div
+              className="relative flex items-center justify-center"
+              style={{ maxWidth: '100%', maxHeight: '100%' }}
+            >
               <Image
                 src={currentImage}
-                alt={`Fullscreen Image ${currentIndex + 1}`}
-                width={1200}
-                height={800}
+                alt={`Enlarged Image ${currentIndex + 1}`}
                 style={{ objectFit: 'contain' }}
+                fill
+                sizes="(max-width: 90vw) 90vw, (max-height: 90vh) 90vh"
               />
             </div>
+
+            {/* Image Count in Enlarged View */}
             {images.length > 1 && (
-              <div className="absolute bottom-4 right-4 text-white text-sm bg-black bg-opacity-50 py-1 px-2 rounded">
+              <div className="absolute bottom-2 right-2 text-white text-sm bg-black bg-opacity-50 py-1 px-2 rounded">
                 {currentIndex + 1} / {images.length}
               </div>
             )}
