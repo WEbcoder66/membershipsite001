@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 
 export default function SignUpPage() {
   const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
@@ -16,12 +17,11 @@ export default function SignUpPage() {
     const res = await fetch('/api/auth/signup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password })
+      body: JSON.stringify({ email, username, password })
     });
 
     const data = await res.json();
     if (data.success) {
-      // After successful signup, redirect to sign-in
       router.push('/auth/signin');
     } else {
       setError(data.error || 'Sign up failed. Try again.');
@@ -46,8 +46,19 @@ export default function SignUpPage() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full border border-gray-300 rounded-md px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-yellow-400"
               placeholder="you@example.com"
+              required
+            />
+          </div>
+          <div>
+            <label className="block mb-2 text-gray-700 font-medium">Username</label>
+            <input 
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+              placeholder="Choose a username"
               required
             />
           </div>
@@ -57,14 +68,14 @@ export default function SignUpPage() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full border border-gray-300 rounded-md px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-yellow-400"
               placeholder="••••••••"
               required
             />
           </div>
           <button 
             type="submit"
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 rounded-md transition-colors"
+            className="w-full bg-yellow-400 hover:bg-yellow-500 text-black font-medium py-2 rounded-md transition-colors"
           >
             Sign Up
           </button>
@@ -72,7 +83,7 @@ export default function SignUpPage() {
 
         <div className="mt-4 text-center text-sm text-gray-600">
           Already have an account?{' '}
-          <a href="/auth/signin" className="text-blue-600 hover:text-blue-700 font-medium transition-colors">
+          <a href="/auth/signin" className="text-yellow-600 hover:text-yellow-700 font-medium transition-colors">
             Sign In
           </a>
         </div>

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
+import bcrypt from 'bcrypt';
 import User from '@/models/User';
 import dbConnect from '@/lib/mongodb';
 
@@ -19,7 +20,6 @@ export async function POST(req: Request) {
   const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET!, { expiresIn: '1h' });
 
   const response = NextResponse.json({ success: true });
-  // Set JWT as an HttpOnly cookie
   response.cookies.set('token', token, {
     httpOnly: true,
     secure: true,

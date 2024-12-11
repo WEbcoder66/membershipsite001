@@ -21,7 +21,6 @@ export default function SignInPage() {
 
     const data = await res.json();
     if (data.success) {
-      // Sign-in successful
       router.push('/');
     } else {
       setError(data.error || 'Sign in failed. Check your credentials.');
@@ -46,7 +45,7 @@ export default function SignInPage() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full border border-gray-300 rounded-md px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-yellow-400"
               placeholder="you@example.com"
               required
             />
@@ -57,27 +56,27 @@ export default function SignInPage() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full border border-gray-300 rounded-md px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-yellow-400"
               placeholder="••••••••"
               required
             />
           </div>
           <button 
             type="submit"
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 rounded-md transition-colors"
+            className="w-full bg-yellow-400 hover:bg-yellow-500 text-black font-medium py-2 rounded-md transition-colors"
           >
             Sign In
           </button>
         </form>
 
         <div className="mt-6 text-center">
-          <a href="/auth/forgot-password" className="text-sm text-blue-600 hover:text-blue-700 font-medium transition-colors">
+          <a href="/auth/forgot-password" className="text-sm text-yellow-600 hover:text-yellow-700 font-medium transition-colors">
             Forgot Password?
           </a>
         </div>
-        <div className="mt-4 text-center text-sm text-gray-600">
+        <div className="mt-2 text-center text-sm text-gray-600">
           Don&apos;t have an account?{' '}
-          <a href="/auth/signup" className="text-blue-600 hover:text-blue-700 font-medium transition-colors">
+          <a href="/auth/signup" className="text-yellow-600 hover:text-yellow-700 font-medium transition-colors">
             Sign Up
           </a>
         </div>

@@ -1,13 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const router = useRouter();
 
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,14 +50,14 @@ export default function ForgotPasswordPage() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full border border-gray-300 rounded-md px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-yellow-400"
               placeholder="you@example.com"
               required
             />
           </div>
           <button 
             type="submit"
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 rounded-md transition-colors"
+            className="w-full bg-yellow-400 hover:bg-yellow-500 text-black font-medium py-2 rounded-md transition-colors"
           >
             Send Reset Link
           </button>
@@ -67,7 +65,7 @@ export default function ForgotPasswordPage() {
 
         <div className="mt-4 text-center text-sm text-gray-600">
           Remembered your password?{' '}
-          <a href="/auth/signin" className="text-blue-600 hover:text-blue-700 font-medium transition-colors">
+          <a href="/auth/signin" className="text-yellow-600 hover:text-yellow-700 font-medium transition-colors">
             Sign In
           </a>
         </div>

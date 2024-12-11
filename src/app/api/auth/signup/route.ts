@@ -5,22 +5,24 @@ import dbConnect from '@/lib/mongodb';
 
 export async function POST(req: Request) {
   await dbConnect();
-  const { email, password } = await req.json();
+  const { email, username, password } = await req.json();
 
-  if (!email || !password) {
-    return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
+  if (!email || !username || !password) {
+    return NextResponse.json({ error: 'Email, username, and password are required' }, { status: 400 });
   }
 
-  // Check if user already exists
-  const existingUser = await User.findOne({ email });
-  if (existingUser) {
-    return NextResponse.json({ error: 'User already exists' }, { status: 409 });
+  const existingUserEmail = await User.findOne({ email });
+  if (existingUserEmail) {
+    return NextResponse.json({ error: 'Email already in use' }, { status: 409 });
   }
 
-  // Hash password
+  const existingUserName = await User.findOne({ username });
+  if (existingUserName) {
+    return NextResponse.json({ error: 'Username already in use' }, { status: 409 });
+  }
+
   const hashedPassword = await bcrypt.hash(password, 10);
-  
-  await User.create({ email, hashedPassword });
+  await User.create({ email, username, hashedPassword });
 
   return NextResponse.json({ success: true });
 }
