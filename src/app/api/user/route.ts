@@ -8,8 +8,14 @@ export async function GET() {
   if (!userToken) return NextResponse.json({ loggedIn: false }, { status: 401 });
 
   await dbConnect();
-  const user = await User.findById(userToken.userId).select('email');
+  const user = await User.findById(userToken.userId).select('email username membershipTier purchases');
   if (!user) return NextResponse.json({ loggedIn: false }, { status: 404 });
 
-  return NextResponse.json({ loggedIn: true, email: user.email });
+  return NextResponse.json({
+    loggedIn: true,
+    email: user.email,
+    username: user.username,
+    membershipTier: user.membershipTier,
+    purchases: user.purchases // This should now work without errors.
+  });
 }

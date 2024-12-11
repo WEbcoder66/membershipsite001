@@ -84,6 +84,12 @@ export default function Home() {
                     {user.membershipTier}
                   </span>
                 )}
+                <a
+                  href="/auth/account"
+                  className="bg-yellow-400 px-4 py-2 rounded-md font-semibold text-black hover:bg-yellow-500 transition-colors"
+                >
+                  Account Settings
+                </a>
                 <button 
                   onClick={() => signOut()}
                   className="bg-yellow-400 px-4 py-2 rounded-md font-semibold text-black hover:bg-yellow-500 transition-colors"

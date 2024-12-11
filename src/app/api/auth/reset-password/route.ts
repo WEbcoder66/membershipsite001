@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import bcrypt from 'bcrypt';
-import User from '@/models/User';
+import User, { IUserDocument } from '@/models/User';
 import dbConnect from '@/lib/mongodb';
 
 export async function POST(req: Request) {
@@ -10,7 +10,7 @@ export async function POST(req: Request) {
   const user = await User.findOne({
     passwordResetToken: token,
     passwordResetExpires: { $gt: new Date() }
-  });
+  }) as IUserDocument | null;
 
   if (!user) {
     return NextResponse.json({ error: 'Invalid or expired token' }, { status: 400 });

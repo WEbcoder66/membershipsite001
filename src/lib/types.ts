@@ -108,10 +108,7 @@ export interface Post {
     };
   };
   interactions?: {
-    reactions: {
-      type: string;
-      count: number;
-    }[];
+    reactions: { type: string; count: number }[];
     hasReported: boolean;
     isSaved: boolean;
     shares: number;
@@ -148,6 +145,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
+  username?: string; // Add this line
   avatar?: string;
   membershipTier?: MembershipTier;
   isAdmin?: boolean;
