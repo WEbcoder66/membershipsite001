@@ -21,14 +21,14 @@ export default function ContentPage() {
       try {
         setIsLoading(true);
         setError(null);
-        
+
         console.log('Fetching content with ID:', params.id);
         const response = await fetch(`/api/content/${params.id}`);
-        
+
         if (!response.ok) {
           throw new Error('Failed to fetch content');
         }
-        
+
         const data = await response.json();
         if (data.success && data.data) {
           console.log('Content loaded:', data.data);
@@ -36,7 +36,6 @@ export default function ContentPage() {
         } else {
           throw new Error('Invalid content data');
         }
-        
       } catch (err) {
         console.error('Error loading content:', err);
         setError(err instanceof Error ? err.message : 'Failed to load content');
@@ -96,7 +95,6 @@ export default function ContentPage() {
               <VideoPlayer
                 videoId={content.mediaContent.video.videoId}
                 thumbnail={content.mediaContent.video.thumbnail}
-                title={content.title}
                 requiredTier={content.tier}
                 setActiveTab={() => {}}
               />

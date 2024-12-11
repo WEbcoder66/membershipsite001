@@ -12,7 +12,6 @@ const PlyrPlayer = dynamic(() => import('./PlyrPlayer'), { ssr: false });
 interface VideoPlayerProps {
   videoId: string;
   thumbnail?: string;
-  title?: string;
   requiredTier: MembershipTier;
   setActiveTab: (tab: string) => void;
 }
@@ -20,7 +19,6 @@ interface VideoPlayerProps {
 export default function VideoPlayer({
   videoId,
   thumbnail,
-  title,
   requiredTier,
   setActiveTab
 }: VideoPlayerProps) {
@@ -42,7 +40,7 @@ export default function VideoPlayer({
         <div className="absolute inset-0">
           <img
             src={thumbnail || '/api/placeholder/800/450'}
-            alt={title || "Video thumbnail"}
+            alt="Video thumbnail"
             className="w-full h-full object-cover filter blur-sm scale-105"
           />
           <div className="absolute inset-0 bg-black/50" />
@@ -83,20 +81,6 @@ export default function VideoPlayer({
           onError={() => setError('Failed to load video')}
         />
       </div>
-      {title && (
-        <div className="mt-4">
-          <h2 className="text-lg font-bold text-gray-900">{title}</h2>
-          <div className="flex items-center gap-2 text-sm text-gray-600">
-            <span className={`px-2 py-0.5 rounded-full ${
-              requiredTier === 'premium' ? 'bg-yellow-100 text-yellow-800' : 
-              requiredTier === 'allAccess' ? 'bg-yellow-200 text-yellow-900' :
-              'bg-gray-100 text-gray-800'
-            }`}>
-              {requiredTier}
-            </span>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

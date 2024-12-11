@@ -5,14 +5,15 @@ import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 interface PhotoGalleryProps {
   images: string[];
   title?: string;
-  description?: string;
 }
 
-const PhotoGallery: React.FC<PhotoGalleryProps> = ({ images, title, description }) => {
+const PhotoGallery: React.FC<PhotoGalleryProps> = ({ images, title }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   if (!images || images.length === 0) return null;
+
+  const currentImage = images[currentIndex];
 
   const prevImage = (e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
@@ -27,8 +28,6 @@ const PhotoGallery: React.FC<PhotoGalleryProps> = ({ images, title, description 
   const selectImage = (index: number) => {
     setCurrentIndex(index);
   };
-
-  const currentImage = images[currentIndex];
 
   const openFullscreen = () => {
     setIsFullscreen(true);
@@ -47,7 +46,6 @@ const PhotoGallery: React.FC<PhotoGalleryProps> = ({ images, title, description 
       )}
 
       <div className="relative bg-black" style={{ minHeight: 300 }}>
-        {/* Main displayed image */}
         <div
           className="w-full h-[300px] sm:h-[500px] md:h-[600px] lg:h-[700px] relative cursor-pointer flex items-center justify-center"
           onClick={openFullscreen}
@@ -61,7 +59,6 @@ const PhotoGallery: React.FC<PhotoGalleryProps> = ({ images, title, description 
           />
         </div>
 
-        {/* Navigation Arrows (only if multiple images) */}
         {images.length > 1 && (
           <>
             <button
@@ -80,7 +77,6 @@ const PhotoGallery: React.FC<PhotoGalleryProps> = ({ images, title, description 
           </>
         )}
 
-        {/* Image count */}
         {images.length > 1 && (
           <div className="absolute top-2 right-2 bg-gray-900 bg-opacity-75 text-white text-sm py-1 px-2 rounded">
             {currentIndex + 1} / {images.length}
@@ -88,7 +84,6 @@ const PhotoGallery: React.FC<PhotoGalleryProps> = ({ images, title, description 
         )}
       </div>
 
-      {/* Thumbnails */}
       {images.length > 1 && (
         <div className="flex gap-2 p-4 overflow-x-auto border-b">
           {images.map((img, idx) => (
@@ -112,13 +107,6 @@ const PhotoGallery: React.FC<PhotoGalleryProps> = ({ images, title, description 
         </div>
       )}
 
-      {description && (
-        <div className="p-4">
-          <p className="text-gray-700">{description}</p>
-        </div>
-      )}
-
-      {/* Enlarged View (Overlay) */}
       {isFullscreen && (
         <div
           className="fixed inset-0 z-50 bg-black bg-opacity-80 flex items-center justify-center p-4 cursor-pointer"
@@ -131,12 +119,10 @@ const PhotoGallery: React.FC<PhotoGalleryProps> = ({ images, title, description 
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              // Max dimensions to avoid scrolling
               maxWidth: '90vw',
               maxHeight: '90vh'
             }}
           >
-            {/* Close Button */}
             <button
               className="absolute top-2 right-2 text-white bg-black bg-opacity-50 rounded-full p-2 hover:bg-opacity-70 z-10"
               onClick={closeFullscreen}
@@ -144,7 +130,6 @@ const PhotoGallery: React.FC<PhotoGalleryProps> = ({ images, title, description 
               <X className="w-5 h-5" />
             </button>
 
-            {/* Navigation Arrows in Enlarged View */}
             {images.length > 1 && (
               <>
                 <button
@@ -169,12 +154,11 @@ const PhotoGallery: React.FC<PhotoGalleryProps> = ({ images, title, description 
               </>
             )}
 
-            {/* Enlarged Image: Use fixed dimensions and contain */}
             <Image
               src={currentImage}
               alt={`Enlarged Image ${currentIndex + 1}`}
-              width={1200} // Arbitrary large dimension
-              height={800} // Arbitrary large dimension
+              width={1200}
+              height={800}
               style={{
                 objectFit: 'contain',
                 maxWidth: '90vw',
@@ -182,7 +166,6 @@ const PhotoGallery: React.FC<PhotoGalleryProps> = ({ images, title, description 
               }}
             />
 
-            {/* Image Count in Enlarged View */}
             {images.length > 1 && (
               <div className="absolute bottom-2 right-2 text-white text-sm bg-black bg-opacity-50 py-1 px-2 rounded z-10">
                 {currentIndex + 1} / {images.length}

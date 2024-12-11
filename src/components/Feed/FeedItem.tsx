@@ -22,7 +22,7 @@ import ErrorBoundary from '@/components/ErrorBoundary';
 import PhotoGallery from '@/components/PhotoGallery';
 
 interface FeedItemProps {
-  post: Content; // Changed from Post to Content
+  post: Content;
   onLike: (postId: string) => void;
   onComment: (postId: string) => void;
   onShare: (postId: string) => void;
@@ -45,7 +45,7 @@ export default function FeedItem({
   const dateInfo = formatDate(post.createdAt);
 
   const renderContent = () => {
-    // Check if post is a poll
+    // Poll
     if (post.type === 'poll' && post.mediaContent?.poll) {
       return (
         <PollComponent
@@ -57,13 +57,13 @@ export default function FeedItem({
       );
     }
 
+    // Video
     if (post.type === 'video' && post.mediaContent?.video?.videoId) {
       return (
         <ErrorBoundary fallback={<div className="p-4 bg-red-50 text-red-700">Error loading video</div>}>
           <VideoPlayer
             videoId={post.mediaContent.video.videoId}
             thumbnail={post.mediaContent.video.thumbnail}
-            title={post.title}
             requiredTier={post.tier as MembershipTier}
             setActiveTab={setActiveTab}
           />
@@ -71,6 +71,7 @@ export default function FeedItem({
       );
     }
 
+    // Audio
     if (post.type === 'audio' && post.mediaContent?.audio) {
       return (
         <AudioPlayer
@@ -80,6 +81,7 @@ export default function FeedItem({
       );
     }
 
+    // Photo
     if (post.type === 'photo') {
       const images = post.mediaContent?.photo?.images;
       if (images && images.length > 0) {
@@ -88,14 +90,13 @@ export default function FeedItem({
             <PhotoGallery
               images={images}
               title={post.title}
-              description={post.description}
             />
           </div>
         );
       }
     }
 
-    // If no special media, just return null
+    // If no special media, return null
     return null;
   };
 
