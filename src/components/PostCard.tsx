@@ -13,8 +13,8 @@ export default function PostCard({ post }: PostCardProps) {
     if (post.mediaContent?.video?.thumbnail) {
       return post.mediaContent.video.thumbnail;
     }
-    if (post.mediaContent?.gallery?.images?.[0]) {
-      return post.mediaContent.gallery.images[0];
+    if (post.mediaContent?.photo?.images?.[0]) {
+      return post.mediaContent.photo.images[0];  // Updated 'gallery' to 'photo'
     }
     if (post.coverImageUrl) {
       return post.coverImageUrl;

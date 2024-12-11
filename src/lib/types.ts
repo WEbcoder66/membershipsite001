@@ -32,7 +32,7 @@ export interface Content {
         url: string;
       }[];
     };
-    gallery?: { // Still named 'gallery' internally for multiple images under photo type
+    photo?: {
       images: string[];
       captions?: string[];
     };
@@ -88,7 +88,7 @@ export interface Post {
         url: string;
       }[];
     };
-    gallery?: {
+    photo?: {
       images: string[];
       captions?: string[];
     };

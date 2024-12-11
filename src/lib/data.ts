@@ -1,3 +1,4 @@
+// src/lib/data.ts
 import { Post, MembershipTier } from './types';
 
 export const posts: Post[] = [
@@ -45,7 +46,7 @@ export const posts: Post[] = [
   {
     id: '2',
     slug: 'studio-setup-tour',
-    type: 'photo', // Changed from 'gallery' to 'photo'
+    type: 'photo',
     title: 'Studio Setup Tour',
     description: 'Take a tour of our newly upgraded studio!',
     content: 'Gallery content here...',
@@ -55,7 +56,7 @@ export const posts: Post[] = [
     likes: 256,
     comments: 67,
     mediaContent: {
-      gallery: {
+      photo: {
         images: [
           '/images/gallery/img1.jpg',
           '/images/gallery/img2.jpg',

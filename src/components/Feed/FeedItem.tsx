@@ -1,3 +1,4 @@
+// src/components/Feed/FeedItem.tsx
 'use client';
 import React, { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
@@ -18,6 +19,7 @@ import AudioPlayer from './AudioPlayer';
 import PollComponent from './PollComponent';
 import PaymentButton from '@/components/PaymentButton';
 import ErrorBoundary from '@/components/ErrorBoundary';
+import PhotoGallery from '@/components/PhotoGallery';
 
 interface FeedItemProps {
   post: Post;
@@ -40,7 +42,6 @@ export default function FeedItem({
 }: FeedItemProps) {
   const { user } = useAuth();
   const [isExpanded, setIsExpanded] = useState(false);
-  const [showComments, setShowComments] = useState(false);
   const dateInfo = formatDate(post.createdAt);
 
   const renderContent = () => {
@@ -78,19 +79,15 @@ export default function FeedItem({
     }
 
     if (post.type === 'photo') {
-      const images = post.mediaContent?.gallery?.images;  
-      // Check that images is defined and not empty
+      const images = post.mediaContent?.photo?.images;
       if (images && images.length > 0) {
         return (
-          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-            {images.map((imgUrl, idx) => (
-              <img
-                key={idx}
-                src={imgUrl}
-                alt={post.title || 'Photo post'}
-                className="w-full h-auto rounded"
-              />
-            ))}
+          <div className="p-4">
+            <PhotoGallery
+              images={images}
+              title={post.title}
+              description={post.description}
+            />
           </div>
         );
       }

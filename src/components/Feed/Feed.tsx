@@ -1,3 +1,4 @@
+// src/components/Feed/Feed.tsx
 'use client';
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
@@ -18,6 +19,7 @@ import CommentSection from '@/components/CommentSection';
 import { formatDate } from '@/lib/utils';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import ErrorBoundary from '@/components/ErrorBoundary';
+import PhotoGallery from '@/components/PhotoGallery';
 
 interface FeedProps {
   setActiveTab: (tab: string) => void;
@@ -141,7 +143,7 @@ export default function Feed({ setActiveTab }: FeedProps) {
         {content.map((post) => {
           const dateInfo = formatDate(post.createdAt);
           const postContent = post.content || post.description || '';
-          const images = post.mediaContent?.gallery?.images;
+          const images = post.mediaContent?.photo?.images;
 
           return (
             <article key={post.id} className="bg-white rounded-lg shadow-lg overflow-hidden">
@@ -188,16 +190,11 @@ export default function Feed({ setActiveTab }: FeedProps) {
               {/* Photo Content */}
               {post.type === 'photo' && images && images.length > 0 && (
                 <div className="p-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                    {images.map((imgUrl, idx) => (
-                      <img
-                        key={idx}
-                        src={imgUrl}
-                        alt={post.title || 'Photo'}
-                        className="w-full h-auto rounded"
-                      />
-                    ))}
-                  </div>
+                  <PhotoGallery
+                    images={images}
+                    title={post.title}
+                    description={post.description}
+                  />
                 </div>
               )}
 
