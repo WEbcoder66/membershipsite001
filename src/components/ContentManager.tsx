@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { 
+import {
   Upload,
   Video,
   Image as ImageIcon,
@@ -19,7 +19,7 @@ interface Content {
   id: string;
   title: string;
   description?: string;
-  type: 'video' | 'gallery' | 'audio' | 'post';
+  type: 'video' | 'photo' | 'audio' | 'post';
   tier: 'basic' | 'premium' | 'allAccess';
   createdAt: string;
   mediaContent?: {
@@ -41,7 +41,7 @@ interface Content {
 
 export default function ContentManager() {
   const { user } = useAuth();
-  const [contentType, setContentType] = useState<'video' | 'gallery' | 'audio' | 'post'>('video');
+  const [contentType, setContentType] = useState<'video' | 'photo' | 'audio' | 'post'>('video');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [membershipTier, setMembershipTier] = useState<'basic' | 'premium' | 'allAccess'>('basic');
@@ -51,7 +51,7 @@ export default function ContentManager() {
   const [content, setContent] = useState<Content[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [editingContent, setEditingContent] = useState<{ id: string; title: string; description: string } | null>(null);
-  
+
   // For post type with optional poll
   const [pollOptions, setPollOptions] = useState<string[]>(['', '']);
   const [pollEnabled, setPollEnabled] = useState(false);
@@ -139,8 +139,8 @@ export default function ContentManager() {
       return;
     }
 
-    // Check file requirements
-    if ((contentType === 'video' || contentType === 'gallery' || contentType === 'audio') && files.length === 0) {
+    // Check file requirements for certain types
+    if ((contentType === 'video' || contentType === 'photo' || contentType === 'audio') && files.length === 0) {
       setError('Please select a file to upload.');
       return;
     }
@@ -158,9 +158,8 @@ export default function ContentManager() {
         mediaContent = {
           video: { videoId: fileUrl }
         };
-      } else if (contentType === 'gallery') {
-        // Multiple images for gallery
-        // Upload each file and get URLs
+      } else if (contentType === 'photo') {
+        // Multiple images for photo
         const imageUrls: string[] = [];
         for (const file of files) {
           const fileUrl = await uploadFileToSpaces(file);
@@ -192,6 +191,7 @@ export default function ContentManager() {
           'Authorization': `Bearer ${user?.email}`
         },
         body: JSON.stringify({
+          // Use 'photo' instead of 'gallery'
           type: contentType,
           title,
           description,
@@ -209,8 +209,8 @@ export default function ContentManager() {
       resetForm();
       fetchContent();
 
-      // Add to feed if it's a post
-      if (contentType === 'post') {
+      // Add to feed if it's a post or photo
+      if (contentType === 'post' || contentType === 'photo') {
         await handleAddToFeed(contentData.data);
       }
 
@@ -223,7 +223,6 @@ export default function ContentManager() {
   }
 
   async function uploadFileToSpaces(file: File): Promise<string> {
-    // This function handles getting a presigned URL and uploading a single file to Spaces
     const fileName = `${Date.now()}-${file.name}`;
     const fileType = file.type;
 
@@ -278,34 +277,21 @@ export default function ContentManager() {
     setPollOptions(newOptions);
   };
 
-  const handleCreatePoll = async () => {
-    // Not needed now since integrated into handleUpload
-  };
-
-  const handleUpdate = async (contentId: string, updates: { title?: string; description?: string }) => {
+  const handleAddToFeed = async (postData: Content) => {
     try {
-      setError(null);
-      const response = await fetch(`/api/content/${contentId}`, {
-        method: 'PATCH',
+      const response = await fetch('/api/feed', {
+        method: 'POST',
         headers: {
-          'Authorization': `Bearer ${user?.email}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(updates)
+        body: JSON.stringify({ postId: postData.id })
       });
-
       if (!response.ok) {
-        throw new Error('Failed to update content');
+        throw new Error('Failed to add post to feed.');
       }
-
-      setContent(prev => prev.map(item =>
-        item.id === contentId ? { ...item, ...updates } : item
-      ));
-
-      setEditingContent(null);
-    } catch (err: any) {
-      console.error('Update error:', err);
-      setError(err.message || 'Failed to update content');
+      console.log('Post added to feed successfully!');
+    } catch (err) {
+      console.error('Add to feed error:', err);
     }
   };
 
@@ -331,24 +317,6 @@ export default function ContentManager() {
     }
   };
 
-  const handleAddToFeed = async (postData: Content) => {
-    try {
-      const response = await fetch('/api/feed', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ postId: postData.id })
-      });
-      if (!response.ok) {
-        throw new Error('Failed to add post to feed.');
-      }
-      console.log('Post added to feed successfully!');
-    } catch (err) {
-      console.error('Add to feed error:', err);
-    }
-  };
-
   if (isLoading) {
     return (
       <div className="flex justify-center items-center p-8">
@@ -359,11 +327,11 @@ export default function ContentManager() {
 
   // Determine accept and multiple attributes for file input based on contentType
   const fileAccept = contentType === 'video' ? 'video/*'
-    : contentType === 'gallery' ? 'image/*'
+    : contentType === 'photo' ? 'image/*'
     : contentType === 'audio' ? 'audio/*'
     : undefined;
 
-  const fileMultiple = contentType === 'gallery'; // Allow multiple files for gallery
+  const fileMultiple = contentType === 'photo'; // Allow multiple files for photo type
 
   return (
     <div className="bg-white rounded-lg shadow-lg p-6">
@@ -372,6 +340,7 @@ export default function ContentManager() {
           <p>{error}</p>
         </div>
       )}
+
       {!error && (
         <>
           <h2 className="text-xl font-bold mb-6">Create New Content</h2>
@@ -384,7 +353,7 @@ export default function ContentManager() {
             <div className="grid grid-cols-4 gap-4">
               {[
                 { type: 'video', icon: Video, label: 'Video' },
-                { type: 'gallery', icon: ImageIcon, label: 'Gallery' },
+                { type: 'photo', icon: ImageIcon, label: 'Photo' },
                 { type: 'audio', icon: Music, label: 'Audio' },
                 { type: 'post', icon: MessageSquare, label: 'Post' }
               ].map(({ type, icon: Icon, label }) => (
@@ -461,7 +430,7 @@ export default function ContentManager() {
               </select>
             </div>
 
-            {/* If content type is 'post', show a toggle for Poll */}
+            {/* Poll Options for Post Type */}
             {contentType === 'post' && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -509,10 +478,10 @@ export default function ContentManager() {
               </div>
             )}
 
-            {/* File Upload Section for video/gallery/audio. For gallery allow multiple images */}
-            {(contentType === 'video' || contentType === 'gallery' || contentType === 'audio') && (
+            {/* File Upload Section for video/photo/audio */}
+            {(contentType === 'video' || contentType === 'photo' || contentType === 'audio') && (
               <div
-                className={`border-2 border-dashed rounded-lg p-8 ${
+                className={`border-2 border-dashed rounded-lg p-8 text-center ${
                   dragActive ? 'border-yellow-400 bg-yellow-50' : 'border-gray-300'
                 }`}
                 onDragEnter={handleDrag}
@@ -554,14 +523,14 @@ export default function ContentManager() {
             <button
               onClick={async () => {
                 if (contentType === 'post' && pollEnabled) {
-                  // If poll is enabled, handleUpload with a dummy file array if no file needed
+                  // If poll enabled, no file needed
                   await handleUpload([]);
                 } else if (contentType === 'post' && !pollEnabled) {
                   await handleUpload([]);
                 } else {
-                  // For video/gallery/audio:
+                  // For video/photo/audio
                   const files = fileInputRef.current?.files ? Array.from(fileInputRef.current.files) : [];
-                  if (files.length === 0) {
+                  if ((contentType === 'video' || contentType === 'photo' || contentType === 'audio') && files.length === 0) {
                     setError('Please select a file if required or ensure all fields are filled.');
                   } else {
                     await handleUpload(files);
@@ -569,7 +538,7 @@ export default function ContentManager() {
                 }
               }}
               disabled={isUploading || !title || !description || (contentType === 'post' && pollEnabled && pollOptions.filter(opt => opt.trim()).length < 2)}
-              className={`w-full bg-yellow-400 text-black py-3 rounded-lg font-medium hover:bg-yellow-500 disabled:opacity-50 disabled:cursor-not-allowed`}
+              className="w-full bg-yellow-400 text-black py-3 rounded-lg font-medium hover:bg-yellow-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isUploading ? 'Uploading...' : 'Upload Content'}
             </button>
