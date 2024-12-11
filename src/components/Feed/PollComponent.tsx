@@ -6,12 +6,14 @@ interface PollProps {
   options: Record<string, number>;
   endDate?: string;
   multipleChoice?: boolean;
+  postId: string; // Make sure to pass the post's ID
 }
 
 export default function PollComponent({ 
   options = {},
   endDate,
-  multipleChoice = false 
+  multipleChoice = false,
+  postId
 }: PollProps) {
   const { user } = useAuth();
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
@@ -28,24 +30,30 @@ export default function PollComponent({
     return Math.round((optionVotes / total) * 100);
   };
 
-  const handleVote = (option: string) => {
+  const hasEnded = endDate ? new Date(endDate) < new Date() : false;
+
+  const handleVote = async (option: string) => {
     if (!user) {
       alert('Please sign in to vote');
       return;
     }
-    if (hasVoted) return;
+    if (hasVoted || hasEnded) return;
 
-    setVotes(prev => ({
-      ...prev,
-      [option]: (prev[option] || 0) + 1
-    }));
-    
-    setSelectedOption(option);
-    setHasVoted(true);
+    const response = await fetch('/api/content/pollVote', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contentId: postId, option })
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      setVotes(data.data);
+      setSelectedOption(option);
+      setHasVoted(true);
+    } else {
+      alert('Failed to vote');
+    }
   };
-
-  // Check if poll has ended
-  const hasEnded = endDate ? new Date(endDate) < new Date() : false;
 
   const voteOptions = Object.entries(votes);
 
@@ -66,25 +74,25 @@ export default function PollComponent({
             const isSelected = option === selectedOption;
   
             return (
-              <div key={option} className="relative">
+              <div key={option} className="relative bg-gray-100 rounded-lg overflow-hidden">
+                {(hasVoted || hasEnded) && (
+                  <div
+                    className="absolute inset-0 bg-yellow-200"
+                    style={{ width: `${percentage}%` }}
+                  />
+                )}
+
                 <button
                   onClick={() => handleVote(option)}
                   disabled={hasVoted || hasEnded || !user}
-                  className={`w-full text-left p-4 rounded-lg relative overflow-hidden transition-all ${
+                  className={`relative w-full text-left p-4 transition-all ${
                     isSelected 
-                      ? 'bg-yellow-50 border-2 border-yellow-400' 
-                      : 'bg-gray-50 hover:bg-gray-100'
-                  } ${hasVoted || hasEnded ? 'cursor-default' : 'cursor-pointer'}`}
+                      ? 'bg-yellow-50 border-l-4 border-yellow-400' 
+                      : 'hover:bg-gray-50'
+                  }`}
+                  style={{ zIndex: 1 }}
                 >
-                  {(hasVoted || hasEnded) && (
-                    <div
-                      className="absolute inset-0 bg-yellow-100 transition-all duration-500"
-                      style={{ width: `${percentage}%` }}
-                    />
-                  )
-                  }
-
-                  <div className="relative flex justify-between items-center z-10">
+                  <div className="flex justify-between items-center relative z-10">
                     <span className="font-medium text-gray-900">{option}</span>
                     {(hasVoted || hasEnded) && (
                       <span className="text-sm font-medium text-gray-900">
@@ -99,19 +107,13 @@ export default function PollComponent({
         </div>
       )}
 
-      {/* Poll Footer */}
       <div className="mt-4 flex items-center justify-between text-sm text-gray-600">
-        <div>
-          {getTotalVotes()} total votes
-        </div>
+        <div>{getTotalVotes()} total votes</div>
         {!hasEnded && endDate && (
-          <div>
-            Ends {new Date(endDate).toLocaleDateString()}
-          </div>
+          <div>Ends {new Date(endDate).toLocaleDateString()}</div>
         )}
       </div>
 
-      {/* Sign in prompt */}
       {!user && !hasEnded && (
         <div className="mt-4 text-center">
           <button 

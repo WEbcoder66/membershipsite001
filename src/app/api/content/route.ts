@@ -6,7 +6,7 @@ import mongoose from 'mongoose';
 
 interface ILeanContent {
   _id: mongoose.Types.ObjectId;
-  type: 'video' | 'photo' | 'audio' | 'post'; // Updated to include 'photo' and remove 'gallery'
+  type: 'video' | 'photo' | 'audio' | 'post';
   title: string;
   description?: string;
   createdAt: Date;
@@ -115,5 +115,57 @@ export async function DELETE(req: Request) {
   } catch (error: any) {
     console.error('Delete error:', error);
     return NextResponse.json({ error: 'Failed to delete content', details: error?.message }, { status: 500 });
+  }
+}
+
+// NEW PATCH HANDLER FOR EDITING CONTENT
+export async function PATCH(req: Request) {
+  try {
+    await dbConnect();
+    const { searchParams } = new URL(req.url);
+    const contentId = searchParams.get('id');
+    if (!contentId) {
+      return NextResponse.json({ error: 'Missing content ID' }, { status: 400 });
+    }
+
+    // Validate admin access
+    const validation = await validateAdmin();
+    if (!validation.isValid) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { title, description, tier, pollOptions } = await req.json();
+    const updateData: any = { updatedAt: new Date() };
+
+    if (title !== undefined) updateData.title = title;
+    if (description !== undefined) updateData.description = description;
+    if (tier) updateData.tier = tier;
+
+    // Handle poll updates if present
+    if (Array.isArray(pollOptions) && pollOptions.filter((opt: string) => opt.trim()).length >= 2) {
+      const validOptions = pollOptions.filter((opt: string) => opt.trim());
+      const pollObject = validOptions.reduce((acc: any, opt: string) => {
+        acc[opt] = 0;
+        return acc;
+      }, {});
+      updateData['mediaContent.poll'] = {
+        options: pollObject,
+        endDate: new Date(Date.now() + 7*24*60*60*1000),
+        multipleChoice: false
+      };
+    } else {
+      // If no valid poll or less than 2 options, remove poll
+      updateData['mediaContent.poll'] = undefined;
+    }
+
+    const updated = await Content.findByIdAndUpdate(contentId, updateData, { new: true });
+    if (!updated) {
+      return NextResponse.json({ error: 'Content not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true, data: { id: updated._id.toString(), ...updated.toObject() } }, { status: 200 });
+  } catch (error: any) {
+    console.error('Content PATCH error:', error);
+    return NextResponse.json({ error: 'Failed to update content' }, { status: 500 });
   }
 }

@@ -17,7 +17,6 @@ import { formatDate, formatNumber } from '@/lib/utils';
 import VideoPlayer from '@/components/VideoPlayer';
 import AudioPlayer from './AudioPlayer';
 import PollComponent from './PollComponent';
-import PaymentButton from '@/components/PaymentButton';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import PhotoGallery from '@/components/PhotoGallery';
 
@@ -74,6 +73,7 @@ export default function FeedItem({
           options={post.mediaContent.poll.options}
           endDate={post.mediaContent.poll.endDate}
           multipleChoice={post.mediaContent.poll.multipleChoice}
+          postId={post.id} // Ensure postId is passed here
         />
       );
     }
