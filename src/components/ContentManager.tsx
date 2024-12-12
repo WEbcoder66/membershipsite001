@@ -1,9 +1,7 @@
-// src/components/ContentManager.tsx
-
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { useAuth } from '@/context/AuthContext';
+import { useSession } from 'next-auth/react';
 import {
   Upload,
   Video,
@@ -28,7 +26,9 @@ interface Content {
 }
 
 export default function ContentManager() {
-  const { user } = useAuth();
+  const { data: session } = useSession();
+  const userEmail = session?.user?.email;
+
   const [activeTab, setActiveTab] = useState<'create' | 'manage'>('create');
 
   const [contentType, setContentType] = useState<'video' | 'photo' | 'audio' | 'post' | 'poll'>('video');
@@ -40,7 +40,6 @@ export default function ContentManager() {
   const [content, setContent] = useState<Content[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Poll states for poll content
   const [pollOptions, setPollOptions] = useState<string[]>(['', '']);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -53,14 +52,14 @@ export default function ContentManager() {
   } | null>(null);
 
   const fetchContent = useCallback(async () => {
-    if (!user?.email) return;
+    if (!userEmail) return;
     try {
       setIsLoading(true);
       setError(null);
 
       const response = await fetch('/api/content', {
         headers: {
-          'Authorization': `Bearer ${user.email}`
+          'Authorization': `Bearer ${userEmail}`
         }
       });
 
@@ -81,13 +80,13 @@ export default function ContentManager() {
     } finally {
       setIsLoading(false);
     }
-  }, [user?.email]);
+  }, [userEmail]);
 
   useEffect(() => {
-    if (user?.email) {
+    if (userEmail) {
       fetchContent();
     }
-  }, [user?.email, fetchContent]);
+  }, [userEmail, fetchContent]);
 
   const resetForm = () => {
     setTitle('');
@@ -132,7 +131,7 @@ export default function ContentManager() {
   }
 
   async function handleCreateContent(files: File[]) {
-    if (!user?.email) {
+    if (!userEmail) {
       setError('No user email found');
       return;
     }
@@ -143,7 +142,6 @@ export default function ContentManager() {
     }
 
     if (contentType === 'poll') {
-      // For poll, need at least two options
       const validOptions = pollOptions.filter(opt => opt.trim());
       if (validOptions.length < 2) {
         setError('Please provide at least 2 poll options for the poll.');
@@ -180,7 +178,6 @@ export default function ContentManager() {
           }
         };
       } else if (contentType === 'post') {
-        // Just text content, no file needed
         mediaContent = {};
       } else if (contentType === 'poll') {
         const validOptions = pollOptions.filter(opt => opt.trim());
@@ -201,7 +198,7 @@ export default function ContentManager() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${user?.email}`
+          'Authorization': `Bearer ${userEmail}`
         },
         body: JSON.stringify({
           type: contentType,
@@ -260,7 +257,7 @@ export default function ContentManager() {
       const response = await fetch(`/api/content?id=${contentId}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${user?.email}`
+          'Authorization': `Bearer ${userEmail}`
         }
       });
 
@@ -286,20 +283,20 @@ export default function ContentManager() {
   };
 
   const handleUpdateContent = async () => {
-    if (!editingContent) return;
+    if (!editingContent || !userEmail) return;
 
     try {
       const response = await fetch(`/api/content?id=${editingContent.id}`, {
         method: 'PATCH',
         headers: {
-          'Authorization': `Bearer ${user?.email}`,
+          'Authorization': `Bearer ${userEmail}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           title: editingContent.title,
           description: editingContent.description,
           tier: editingContent.tier,
-          pollOptions: [] // Not editing poll here directly
+          pollOptions: []
         })
       });
       if (!response.ok) {

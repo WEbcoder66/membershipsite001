@@ -1,12 +1,13 @@
 'use client';
+
 import React, { useState } from 'react';
-import { useAuth } from '@/context/AuthContext';
+import { useSession } from 'next-auth/react';
 
 interface PollProps {
   options: Record<string, number>;
   endDate?: string;
   multipleChoice?: boolean;
-  postId: string; // Make sure to pass the post's ID
+  postId: string;
 }
 
 export default function PollComponent({ 
@@ -15,7 +16,8 @@ export default function PollComponent({
   multipleChoice = false,
   postId
 }: PollProps) {
-  const { user } = useAuth();
+  const { data: session } = useSession();
+  const user = session?.user;
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [hasVoted, setHasVoted] = useState(false);
   const [votes, setVotes] = useState(options);

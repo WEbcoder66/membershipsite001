@@ -14,7 +14,6 @@ import {
 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import Feed from '@/components/Feed/Feed';
-import Store from '@/components/Store/Store';
 import AboutContent from '@/components/AboutContent';
 import MembershipTiers from '@/components/MembershipTiers';
 import { useSession, signOut } from 'next-auth/react';
@@ -27,7 +26,7 @@ const socialLinks = [
   { icon: LinkedinIcon, href: 'https://linkedin.com', label: 'LinkedIn' }
 ] as const;
 
-const TABS = ['home', 'about', 'membership', 'store'] as const;
+const TABS = ['home', 'about', 'membership',] as const;
 type TabId = typeof TABS[number];
 
 export default function Home() {
@@ -45,7 +44,7 @@ export default function Home() {
   }, []);
 
   const handleSetActiveTab = (tab: string) => {
-    if (tab === 'home' || tab === 'about' || tab === 'membership' || tab === 'store') {
+    if (tab === 'home' || tab === 'about' || tab === 'membership') {
       setActiveTab(tab as TabId);
     }
   };
@@ -204,7 +203,6 @@ export default function Home() {
           {activeTab === 'home' && <Feed setActiveTab={handleSetActiveTab} />}
           {activeTab === 'about' && <AboutContent />}
           {activeTab === 'membership' && <MembershipTiers onSubscribe={() => setShowWelcome(true)} />}
-          {activeTab === 'store' && <Store />}
         </ErrorBoundary>
       </main>
     </div>

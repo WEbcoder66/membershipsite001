@@ -1,9 +1,11 @@
 'use client';
-import Link from 'next/link';
-import { useAuth } from '@/context/AuthContext';
 
-export function Header() {  // Changed to named export
-  const { user, signOut } = useAuth();
+import Link from 'next/link';
+import { useSession, signOut } from 'next-auth/react';
+
+export function Header() {
+  const { data: session } = useSession();
+  const user = session?.user;
 
   return (
     <header className="bg-white shadow-sm">
@@ -17,7 +19,7 @@ export function Header() {  // Changed to named export
               {user.name}
             </span>
             <button
-              onClick={() => signOut()}
+              onClick={() => signOut({ callbackUrl: '/' })}
               className="text-sm text-yellow-600 hover:text-yellow-700"
             >
               Sign Out
@@ -29,4 +31,4 @@ export function Header() {  // Changed to named export
   );
 }
 
-export default Header;  // Also add default export for flexibility
+export default Header; 

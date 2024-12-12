@@ -1,5 +1,6 @@
 'use client';
-import { useAuth } from '@/context/AuthContext';
+
+import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { MembershipTier } from '@/lib/types';
 
@@ -18,11 +19,11 @@ export function PaymentButton({
   type = 'payment',
   className = "bg-yellow-400 px-4 py-2 rounded-md font-semibold text-black hover:bg-yellow-500 transition-colors"
 }: PaymentButtonProps) {
-  const { user, setMembershipTier } = useAuth();
+  const { data: session } = useSession();
   const router = useRouter();
 
   const handlePayment = async () => {
-    if (!user) {
+    if (!session?.user) {
       router.push('/auth/signin');
       return;
     }
@@ -31,12 +32,12 @@ export function PaymentButton({
     const confirmed = window.confirm(`Demo Purchase: ${name} for $${price}`);
     
     if (confirmed) {
-      if (type === 'subscription') {
-        setMembershipTier(contentId as MembershipTier || 'basic');
-        alert('Demo subscription successful! You now have access to premium content.');
-      } else {
-        alert('Demo purchase successful! Content is now available.');
-      }
+      // Since we no longer have setMembershipTier or such from AuthContext,
+      // you'd make an API call to update the user’s membership if needed
+      // and then reload or refresh session.
+      // For now, just alert success.
+      alert('Demo purchase successful! Access should now be granted.');
+      window.location.reload();
     }
   };
 
@@ -45,9 +46,9 @@ export function PaymentButton({
       onClick={handlePayment}
       className={className}
     >
-      {user ? `${type === 'subscription' ? 'Subscribe' : 'Buy'} for $${price}` : 'Sign in to Purchase'}
+      {session?.user ? `${type === 'subscription' ? 'Subscribe' : 'Buy'} for $${price}` : 'Sign in to Purchase'}
     </button>
   );
 }
 
-export default PaymentButton;  // Also add default export for flexibility
+export default PaymentButton;

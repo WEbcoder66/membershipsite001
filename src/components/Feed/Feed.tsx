@@ -1,8 +1,7 @@
-// src/components/Feed/Feed.tsx
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '@/context/AuthContext';
+import { useSession } from 'next-auth/react';
 import { Loader2 } from 'lucide-react';
 import { Content } from '@/lib/types';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -25,7 +24,7 @@ const ErrorFallback = () => (
 );
 
 export default function Feed({ setActiveTab }: FeedProps) {
-  const { user } = useAuth();
+  const { data: session } = useSession();
   const [content, setContent] = useState<Content[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -58,7 +57,7 @@ export default function Feed({ setActiveTab }: FeedProps) {
   }, []);
 
   const handleLike = (postId: string) => {
-    if (!user) {
+    if (!session?.user) {
       alert('Please sign in to like posts');
       return;
     }
@@ -74,7 +73,6 @@ export default function Feed({ setActiveTab }: FeedProps) {
   };
 
   const handleComment = (postId: string) => {
-    // Toggle comments section
     setExpandedComments((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(postId)) {
@@ -119,8 +117,6 @@ export default function Feed({ setActiveTab }: FeedProps) {
               <FeedItem
                 post={{
                   ...post,
-                  // If we want to adjust likes or comments dynamically, we can do so here.
-                  // e.g., likes might be post.likes + (likedPosts.has(post.id) ? 1 : 0)
                   likes: (post.likes || 0) + (likedPosts.has(post.id) ? 1 : 0),
                   comments: post.comments || 0
                 }}

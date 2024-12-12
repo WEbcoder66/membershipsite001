@@ -1,62 +1,70 @@
 // src/lib/authOptions.ts
 import { AuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import dbConnect from "@/lib/mongodb";
-import User from "@/models/User";
-import bcrypt from "bcrypt";
 
 export const authOptions: AuthOptions = {
   secret: process.env.NEXTAUTH_SECRET,
   session: {
-    strategy: "jwt"
+    strategy: "jwt",
   },
   providers: [
     CredentialsProvider({
       name: "Credentials",
       credentials: {
         email: { label: "Email", type: "text" },
-        password: { label: "Password", type: "password" }
+        password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        await dbConnect();
-        const user = await User.findOne({ email: credentials?.email }).exec();
-        if (!user) {
-          throw new Error("No user found with that email");
+        // Check that credentials are provided and valid
+        if (!credentials || !credentials.email || !credentials.password) {
+          return null;
         }
-        const isValid = await bcrypt.compare(credentials!.password, user.hashedPassword);
-        if (!isValid) {
-          throw new Error("Invalid password");
+
+        // Implement your user lookup logic here
+        // For demo, we hardcode an admin user:
+        if (
+          credentials.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL &&
+          credentials.password === process.env.NEXT_PUBLIC_ADMIN_PASSWORD
+        ) {
+          // Admin user example
+          return {
+            id: "123",
+            name: "Admin User",
+            email: credentials.email,
+            isAdmin: true,
+            membershipTier: "allAccess",
+          };
+        } else {
+          // Regular user example
+          // In a real app, you'd validate credentials against a database
+          // and set isAdmin/membershipTier accordingly.
+          return {
+            id: "456",
+            name: "Regular User",
+            email: credentials.email,
+            isAdmin: false,
+            membershipTier: "basic",
+          };
         }
-        // Include membershipTier from the user document if it exists
-        return {
-          id: user._id.toString(),
-          name: user.username,
-          email: user.email,
-          membershipTier: user.membershipTier // Ensure user model has this field
-        };
       },
     }),
   ],
   callbacks: {
-    async session({ session, token }) {
+    jwt({ token, user }) {
+      if (user) {
+        token.id = user.id;
+        token.isAdmin = user.isAdmin ?? false;
+        token.membershipTier = user.membershipTier ?? "basic";
+      }
+      return token;
+    },
+    session({ session, token }) {
       if (session.user && token) {
-        session.user.id = token.sub ?? '';
-        // Add membershipTier to session if it exists in token
-        if (typeof token.membershipTier === 'string') {
-          session.user.membershipTier = token.membershipTier;
-        }
+        session.user.id = token.id as string;
+        session.user.isAdmin = token.isAdmin as boolean;
+        session.user.membershipTier = token.membershipTier as string;
       }
       return session;
     },
-    async jwt({ token, user }) {
-      if (user) {
-        token.sub = user.id;
-        // Store membershipTier in the token
-        if ((user as any).membershipTier) {
-          token.membershipTier = (user as any).membershipTier;
-        }
-      }
-      return token;
-    }
-  }
+  },
 };

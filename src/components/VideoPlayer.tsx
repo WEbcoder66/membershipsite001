@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '@/context/AuthContext';
+import { useSession } from 'next-auth/react';
 import { Lock, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { MembershipTier } from '@/lib/types';
@@ -22,17 +22,14 @@ export default function VideoPlayer({
   requiredTier,
   setActiveTab
 }: VideoPlayerProps) {
-  const { user } = useAuth();
+  const { data: session } = useSession();
+  const userTier = session?.user?.membershipTier;
   const [error, setError] = useState<string | null>(null);
-  const [hasAccess, setHasAccess] = useState(false);
 
-  useEffect(() => {
-    if (!user?.membershipTier) return;
-    const tierLevels = { basic: 1, premium: 2, allAccess: 3 };
-    const userTierLevel = tierLevels[user.membershipTier];
-    const requiredLevel = tierLevels[requiredTier];
-    setHasAccess(userTierLevel >= requiredLevel);
-  }, [user, requiredTier]);
+  const hasAccess = userTier
+    ? ['basic', 'premium', 'allAccess'].indexOf(userTier) >=
+      ['basic', 'premium', 'allAccess'].indexOf(requiredTier)
+    : false;
 
   if (!hasAccess) {
     return (

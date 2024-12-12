@@ -1,8 +1,7 @@
-// src/components/Feed/FeedItem.tsx
 'use client';
 
 import React, { useState } from 'react';
-import { useAuth } from '@/context/AuthContext';
+import { useSession } from 'next-auth/react';
 import {
   ThumbsUp,
   MessageCircle,
@@ -23,7 +22,7 @@ import ErrorBoundary from '@/components/ErrorBoundary';
 import PhotoGallery from '@/components/PhotoGallery';
 
 interface FeedItemProps {
-  post: Content;
+  post: Content & { likes: number; comments: number; };
   onLike: (postId: string) => void;
   onComment: (postId: string) => void;
   onShare: (postId: string) => void;
@@ -41,12 +40,13 @@ export default function FeedItem({
   onReport,
   setActiveTab
 }: FeedItemProps) {
-  const { user } = useAuth();
+  const { data: session } = useSession();
   const [isExpanded, setIsExpanded] = useState(false);
   const dateInfo = formatDate(post.createdAt);
 
-  const hasAccess = user?.membershipTier
-    ? ['basic', 'premium', 'allAccess'].indexOf(user.membershipTier) >=
+  const userTier = session?.user?.membershipTier;
+  const hasAccess = userTier
+    ? ['basic', 'premium', 'allAccess'].indexOf(userTier) >=
       ['basic', 'premium', 'allAccess'].indexOf(post.tier)
     : false;
 
@@ -87,7 +87,6 @@ export default function FeedItem({
 
     // Video
     if (post.type === 'video' && post.mediaContent?.video?.videoId) {
-      // VideoPlayer handles locking internally, so just return it
       return (
         <ErrorBoundary fallback={<div className="p-4 bg-red-50 text-red-700">Error loading video</div>}>
           <VideoPlayer
@@ -102,8 +101,6 @@ export default function FeedItem({
 
     // Audio
     if (post.type === 'audio' && post.mediaContent?.audio) {
-      // If no access logic needed here? Audio might also need locking if desired.
-      // If desired, we can do similar overlay logic for audio as well:
       if (!hasAccess) {
         return renderLockedOverlay();
       }
@@ -120,7 +117,6 @@ export default function FeedItem({
     if (post.type === 'photo') {
       const images = post.mediaContent?.photo?.images;
       if (!hasAccess) {
-        // Show locked overlay for photos
         return renderLockedOverlay();
       } else if (images && images.length > 0) {
         return (
@@ -134,7 +130,6 @@ export default function FeedItem({
       }
     }
 
-    // If no special media, return null
     return null;
   };
 

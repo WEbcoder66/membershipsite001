@@ -1,16 +1,15 @@
-// src/app/admin/login/page.tsx
 'use client';
+
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/context/AuthContext';
 import Link from 'next/link';
 import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { ADMIN_CREDENTIALS } from '@/lib/adminConfig';
+import { signIn, useSession } from 'next-auth/react';
 
 export default function AdminLogin() {
+  const { data: session } = useSession();
   const router = useRouter();
-  const { user, signIn } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -18,10 +17,10 @@ export default function AdminLogin() {
 
   // Redirect if already logged in as admin
   useEffect(() => {
-    if (user?.isAdmin) {
+    if (session?.user?.isAdmin) {
       router.push('/admin/dashboard');
     }
-  }, [user, router]);
+  }, [session, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,16 +28,19 @@ export default function AdminLogin() {
     setError('');
 
     try {
-      // Check for admin credentials
-      if (email !== process.env.NEXT_PUBLIC_ADMIN_EMAIL || 
-          password !== process.env.NEXT_PUBLIC_ADMIN_PASSWORD) {
-        throw new Error('Invalid admin credentials');
-      }
+      // Attempt sign-in with credentials provider
+      const res = await signIn('credentials', {
+        redirect: false,
+        email,
+        password
+      });
 
-      console.log('Attempting admin login...'); // Debug log
-      await signIn(email, password);
-      console.log('Admin login successful, redirecting...'); // Debug log
-      router.push('/admin/dashboard');
+      if (res && !res.error) {
+        console.log('Admin login successful, redirecting...');
+        router.push('/admin/dashboard');
+      } else {
+        throw new Error(res?.error || 'Invalid admin credentials');
+      }
     } catch (err) {
       console.error('Admin login error:', err);
       setError(err instanceof Error ? err.message : 'Invalid credentials');
@@ -127,16 +129,6 @@ export default function AdminLogin() {
               {isLoading ? 'Signing in...' : 'Sign In'}
             </button>
           </form>
-
-          {process.env.NODE_ENV === 'development' && (
-            <div className="mt-4 p-4 bg-gray-100 rounded-lg">
-              <p className="text-sm text-gray-600">
-                Development Credentials:<br />
-                Email: {process.env.NEXT_PUBLIC_ADMIN_EMAIL}<br />
-                Password: {process.env.NEXT_PUBLIC_ADMIN_PASSWORD}
-              </p>
-            </div>
-          )}
         </div>
       </div>
     </div>

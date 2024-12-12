@@ -1,45 +1,35 @@
 // src/app/admin/dashboard/page.tsx
 'use client';
+
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/context/AuthContext';
+import { useSession, signOut } from 'next-auth/react';
 import ContentManager from '@/components/ContentManager';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { 
   LayoutDashboard, 
   FileText, 
-  Users, 
-  Settings,
+  Users,
   LogOut,
   Loader2,
   BarChart,
   AlertCircle
 } from 'lucide-react';
 
-interface Content {
-  id: string;
-  title: string;
-  description?: string;
-  type: 'video' | 'gallery' | 'audio' | 'post';
-  tier: 'basic' | 'premium' | 'allAccess';
-  createdAt: string;
-}
-
 export default function AdminDashboard() {
-  const { user, signOut } = useAuth();
+  const { data: session } = useSession();
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<'content' | 'members' | 'settings'>('content');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   // Initial load and auth check
   useEffect(() => {
-    if (!user?.isAdmin) {
+    if (!session?.user?.isAdmin) {
       router.push('/admin/login');
     } else {
       setIsLoading(false);
     }
-  }, [user, router]);
+  }, [session, router]);
 
   // Example stats data (if you have stats)
   const statsData = {
@@ -89,7 +79,7 @@ export default function AdminDashboard() {
                 View Site
               </button>
               <button
-                onClick={() => signOut()}
+                onClick={() => signOut({ callbackUrl: '/' })}
                 className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
               >
                 <LogOut className="w-4 h-4" />
@@ -161,7 +151,7 @@ export default function AdminDashboard() {
           </Alert>
         )}
 
-        {/* Instead of having a separate set of tabs here, we directly render ContentManager, which has its own tabs */}
+        {/* Content Manager */}
         <div className="bg-white rounded-lg shadow-lg">
           <ContentManager />
         </div>

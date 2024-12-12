@@ -1,7 +1,8 @@
 'use client';
+
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { useAuth } from '@/context/AuthContext';
+import { useSession } from 'next-auth/react';
 import { Lock, Loader2 } from 'lucide-react';
 import { Header } from '@/components/Header';
 import VideoPlayer from '@/components/VideoPlayer';
@@ -10,7 +11,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import PaymentButton from '@/components/PaymentButton';
 
 export default function ContentPage() {
-  const { user } = useAuth();
+  const { data: session } = useSession();
   const params = useParams();
   const [content, setContent] = useState<Content | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -77,9 +78,9 @@ export default function ContentPage() {
     );
   }
 
-  // Check if user has access based on membership tier
-  const hasAccess = user?.membershipTier 
-    ? ['basic', 'premium', 'allAccess'].indexOf(user.membershipTier) >= 
+  const userTier = session?.user?.membershipTier;
+  const hasAccess = userTier 
+    ? ['basic', 'premium', 'allAccess'].indexOf(userTier) >= 
       ['basic', 'premium', 'allAccess'].indexOf(content.tier)
     : false;
 
@@ -138,7 +139,6 @@ export default function ContentPage() {
               {content.description}
             </p>
 
-            {/* Additional metadata could go here */}
             <div className="mt-4 text-sm text-gray-500">
               Posted on {new Date(content.createdAt).toLocaleDateString()}
             </div>

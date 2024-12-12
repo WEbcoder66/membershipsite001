@@ -1,14 +1,15 @@
 'use client';
+
 import React from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { useAuth } from '@/context/AuthContext';
+import { useSession } from 'next-auth/react';
 import { posts } from '@/lib/data';
 import { Header } from '@/components/Header';
 import { PaymentButton } from '@/components/PaymentButton';
 
 export default function PostPage() {
-  const { user } = useAuth();
+  const { data: session } = useSession();
   const params = useParams();
   const slug = params.slug as string;
   const post = posts.find(p => p.slug === slug);
@@ -28,6 +29,12 @@ export default function PostPage() {
       </div>
     );
   }
+
+  const userTier = session?.user?.membershipTier;
+  const hasAccess = userTier
+    ? ['basic', 'premium', 'allAccess'].indexOf(userTier) >=
+      ['basic', 'premium', 'allAccess'].indexOf(post.tier)
+    : false;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -55,7 +62,7 @@ export default function PostPage() {
             <div className="mt-8 prose max-w-none text-black">
               <p className="text-lg">{post.description}</p>
               
-              {post.isLocked ? (
+              {post.isLocked && !hasAccess ? (
                 <div className="mt-8 p-6 bg-gray-50 rounded-lg">
                   <h2 className="text-xl font-semibold">Exclusive Content</h2>
                   <p className="mt-2 text-gray-600">

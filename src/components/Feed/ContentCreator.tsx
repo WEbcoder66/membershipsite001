@@ -1,7 +1,7 @@
-// src/components/Feed/ContentCreator.tsx
 'use client';
+
 import React, { useState, useRef } from 'react';
-import { useAuth } from '@/context/AuthContext';
+import { useSession } from 'next-auth/react';
 import { 
   Upload,
   Video,
@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 
 export default function ContentCreator() {
-  const { user } = useAuth();
+  const { data: session } = useSession();
   const [contentType, setContentType] = useState<'video' | 'image' | 'poll' | 'audio'>('video');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -24,8 +24,10 @@ export default function ContentCreator() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pollOptions, setPollOptions] = useState<string[]>(['', '']);
 
-  // Only render for admin users
-  if (!user?.isAdmin) {
+  // Check admin status from session if available
+  const isAdmin = session?.user?.isAdmin;
+
+  if (!isAdmin) {
     return null;
   }
 
@@ -41,10 +43,15 @@ export default function ContentCreator() {
       formData.append('description', description);
       formData.append('membershipTier', membershipTier);
 
+      const email = session?.user?.email;
+      if (!email) {
+        throw new Error('User not signed in');
+      }
+
       const response = await fetch('/api/content/upload', {
         method: 'POST',
         headers: {
-          'authorization': `Bearer ${user?.email}`
+          'authorization': `Bearer ${email}`
         },
         body: formData
       });
@@ -62,7 +69,6 @@ export default function ContentCreator() {
       }
 
       alert('Content uploaded successfully!');
-
     } catch (error) {
       console.error('Upload error:', error);
       alert('Failed to upload content. Please try again.');
@@ -93,11 +99,16 @@ export default function ContentCreator() {
 
     setIsUploading(true);
     try {
+      const email = session?.user?.email;
+      if (!email) {
+        throw new Error('User not signed in');
+      }
+
       const response = await fetch('/api/content/create-poll', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'authorization': `Bearer ${user?.email}`
+          'authorization': `Bearer ${email}`
         },
         body: JSON.stringify({
           title,

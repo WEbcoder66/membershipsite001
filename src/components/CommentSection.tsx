@@ -1,7 +1,7 @@
 // src/components/CommentSection.tsx
 'use client';
 import React, { useState } from 'react';
-import { useAuth } from '@/context/AuthContext';
+import { useSession } from 'next-auth/react';
 import { ThumbsUp, Reply } from 'lucide-react';
 import Image from 'next/image';
 import { formatTimestamp } from '@/lib/utils';
@@ -13,7 +13,9 @@ interface CommentSectionProps {
 }
 
 export default function CommentSection({ postId, initialComments = [] }: CommentSectionProps) {
-  const { user } = useAuth();
+  const { data: session } = useSession();
+  const user = session?.user;
+  
   const [comments, setComments] = useState<Comment[]>(initialComments.length > 0 ? initialComments : [
     {
       id: '1',
@@ -21,7 +23,7 @@ export default function CommentSection({ postId, initialComments = [] }: Comment
       user: {
         id: 'user1',
         name: 'John Doe',
-        avatar: '/images/profiles/default.jpg',
+        avatar: '/images/profiles/default.jpg', // For existing comments, hard-coded avatar
         tier: 'premium'
       },
       content: 'This is amazing content! Really helpful and well-explained.',
@@ -34,7 +36,7 @@ export default function CommentSection({ postId, initialComments = [] }: Comment
           user: {
             id: 'user2',
             name: 'Jane Smith',
-            avatar: '/images/profiles/default.jpg',
+            avatar: '/images/profiles/default.jpg', // For existing reply, hard-coded avatar
             tier: 'basic'
           },
           content: 'Totally agree! The production quality is outstanding.',
@@ -63,8 +65,8 @@ export default function CommentSection({ postId, initialComments = [] }: Comment
       user: {
         id: user.id,
         name: user.name,
-        avatar: user.avatar || '/images/profiles/default.jpg',
-        tier: user.membershipTier
+        avatar: user.image || '/images/profiles/default.jpg', // Use user.image instead of user.avatar
+        tier: user.membershipTier as MembershipTier | undefined
       },
       content: newComment.trim(),
       createdAt: new Date().toISOString(),
@@ -89,8 +91,8 @@ export default function CommentSection({ postId, initialComments = [] }: Comment
       user: {
         id: user.id,
         name: user.name,
-        avatar: user.avatar || '/images/profiles/default.jpg',
-        tier: user.membershipTier
+        avatar: user.image || '/images/profiles/default.jpg', // Use user.image here too
+        tier: user.membershipTier as MembershipTier | undefined
       },
       content: replyContent.trim(),
       createdAt: new Date().toISOString(),
@@ -124,14 +126,13 @@ export default function CommentSection({ postId, initialComments = [] }: Comment
     }
   };
 
-
   return (
     <div className="border-t pt-4">
       {/* Add Comment */}
       <div className="flex gap-4 mb-6">
         <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-200 relative flex-shrink-0">
           <Image
-            src={user?.avatar || '/images/profiles/default.jpg'}
+            src={user?.image || '/images/profiles/default.jpg'}
             alt="Your avatar"
             fill
             className="object-cover"
@@ -206,9 +207,9 @@ export default function CommentSection({ postId, initialComments = [] }: Comment
               {/* Reply Input */}
               {replyingTo === comment.id && (
                 <div className="mt-4 flex gap-4">
-                 <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-200 relative flex-shrink-0">
+                  <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-200 relative flex-shrink-0">
                     <Image
-                      src={user?.avatar || '/images/profiles/default.jpg'}
+                      src={user?.image || '/images/profiles/default.jpg'}
                       alt="Your avatar"
                       fill
                       className="object-cover"

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useAuth } from '@/context/AuthContext';
+import { useSession } from 'next-auth/react';
 
 const MEMBERSHIP_TIERS = {
   basic: {
@@ -47,21 +47,32 @@ interface MembershipTiersProps {
 }
 
 export default function MembershipTiers({ onSubscribe }: MembershipTiersProps) {
-  const { user, setMembershipTier } = useAuth();
+  const { data: session } = useSession();
   const [isAnnual, setIsAnnual] = useState(false);
   const [processingTier, setProcessingTier] = useState<string | null>(null);
 
   const handleSubscribe = async (tierId: string) => {
-    if (!user) {
+    if (!session?.user) {
       window.location.href = '/auth/signin';
       return;
     }
 
     try {
       setProcessingTier(tierId);
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      await setMembershipTier(tierId as 'basic' | 'premium' | 'allAccess');
+      // Make a request to your server to update the user's membership tier
+      // Example (adjust this endpoint and logic as needed):
+      const res = await fetch('/api/user/updateTier', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tier: tierId })
+      });
+
+      if (!res.ok) {
+        throw new Error('Failed to update membership tier.');
+      }
+
       onSubscribe?.();
+      // Refresh the page or session to reflect the new tier
       window.location.reload();
     } catch (error) {
       console.error('Subscription error:', error);
@@ -100,6 +111,7 @@ export default function MembershipTiers({ onSubscribe }: MembershipTiersProps) {
         {Object.entries(MEMBERSHIP_TIERS).map(([tierId, tier]) => {
           const price = isAnnual ? tier.annualPrice / 12 : tier.price;
           const yearlyPrice = isAnnual ? tier.annualPrice : tier.price * 12;
+          const currentTier = session?.user?.membershipTier;
 
           return (
             <div
@@ -136,16 +148,16 @@ export default function MembershipTiers({ onSubscribe }: MembershipTiersProps) {
 
               <button
                 onClick={() => handleSubscribe(tierId)}
-                disabled={user?.membershipTier === tierId || !!processingTier}
+                disabled={currentTier === tierId || !!processingTier}
                 className={`w-full py-3 px-4 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors ${
-                  user?.membershipTier === tierId
+                  currentTier === tierId
                     ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
                     : processingTier === tierId
                     ? 'bg-yellow-300 text-black cursor-wait'
                     : `${tier.color} text-black hover:bg-opacity-90`
                 }`}
               >
-                {user?.membershipTier === tierId
+                {currentTier === tierId
                   ? 'Current Plan'
                   : processingTier === tierId
                   ? 'Processing...'
