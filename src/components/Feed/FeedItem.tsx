@@ -1,7 +1,7 @@
 // src/components/Feed/FeedItem.tsx
 'use client';
 
-import React from 'react';
+import React, { memo } from 'react';
 import { ThumbsUp, MessageCircle } from 'lucide-react';
 import { Content } from '@/lib/types';
 import VideoPlayer from '@/components/VideoPlayer';
@@ -16,7 +16,7 @@ interface FeedItemProps {
   setActiveTab: (tab: string) => void;
 }
 
-export default function FeedItem({ post, onLike, onComment, setActiveTab }: FeedItemProps) {
+function FeedItemBase({ post, onLike, onComment, setActiveTab }: FeedItemProps) {
   const renderContent = () => {
     switch (post.type) {
       case 'video':
@@ -75,7 +75,6 @@ export default function FeedItem({ post, onLike, onComment, setActiveTab }: Feed
 
       case 'post':
       default:
-        // For a plain post or if no special media is provided:
         return (
           <div className="p-4">
             {post.description && <p className="text-gray-800">{post.description}</p>}
@@ -113,3 +112,6 @@ export default function FeedItem({ post, onLike, onComment, setActiveTab }: Feed
     </article>
   );
 }
+
+const FeedItem = memo(FeedItemBase);
+export default FeedItem;
