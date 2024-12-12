@@ -27,20 +27,34 @@ export const authOptions: AuthOptions = {
         if (!isValid) {
           throw new Error("Invalid password");
         }
-        return { id: user._id.toString(), name: user.username, email: user.email };
+        // Include membershipTier from the user document if it exists
+        return {
+          id: user._id.toString(),
+          name: user.username,
+          email: user.email,
+          membershipTier: user.membershipTier // Ensure user model has this field
+        };
       },
     }),
   ],
   callbacks: {
     async session({ session, token }) {
-      if (token && session.user) {
+      if (session.user && token) {
         session.user.id = token.sub ?? '';
+        // Add membershipTier to session if it exists in token
+        if (typeof token.membershipTier === 'string') {
+          session.user.membershipTier = token.membershipTier;
+        }
       }
       return session;
     },
     async jwt({ token, user }) {
       if (user) {
         token.sub = user.id;
+        // Store membershipTier in the token
+        if ((user as any).membershipTier) {
+          token.membershipTier = (user as any).membershipTier;
+        }
       }
       return token;
     }

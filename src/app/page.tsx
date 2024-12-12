@@ -1,7 +1,8 @@
+// src/app/page.tsx
 'use client';
+
 import ErrorBoundary from '@/components/ErrorBoundary';
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '@/context/AuthContext';
 import Image from 'next/image';
 import { 
   AlertCircle,
@@ -16,6 +17,7 @@ import Feed from '@/components/Feed/Feed';
 import Store from '@/components/Store/Store';
 import AboutContent from '@/components/AboutContent';
 import MembershipTiers from '@/components/MembershipTiers';
+import { useSession, signOut } from 'next-auth/react';
 
 const socialLinks = [
   { icon: Facebook, href: 'https://facebook.com', label: 'Facebook' },
@@ -31,7 +33,8 @@ type TabId = typeof TABS[number];
 export default function Home() {
   const [activeTab, setActiveTab] = useState<TabId>('home');
   const [showWelcome, setShowWelcome] = useState(false);
-  const { user, signOut } = useAuth();
+  const { data: session } = useSession();
+  const user = session?.user;
 
   useEffect(() => {
     const shouldShowMembership = localStorage.getItem('returnToMembership');
@@ -91,7 +94,7 @@ export default function Home() {
                   Account Settings
                 </a>
                 <button 
-                  onClick={() => signOut()}
+                  onClick={() => signOut({ callbackUrl: '/' })}
                   className="bg-yellow-400 px-4 py-2 rounded-md font-semibold text-black hover:bg-yellow-500 transition-colors"
                 >
                   Sign Out

@@ -2,8 +2,6 @@
 import { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
-
-// Import the client provider wrapper
 import { ClientProviders } from './ClientProviders';
 
 const inter = Inter({ subsets: ['latin'] });
@@ -39,7 +37,6 @@ export default function RootLayout({
         />
       </head>
       <body>
-        {/* Wrap children with the ClientProviders */}
         <ClientProviders>
           <main className="min-h-screen bg-gray-50">
             {children}
