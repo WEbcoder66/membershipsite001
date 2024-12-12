@@ -1,4 +1,3 @@
-// src/app/api/comments/route.ts
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/authOptions';
@@ -37,8 +36,63 @@ export async function POST(req: Request) {
     userId: session.user.id,
     username: session.user.name,
     avatar: session.user.image,
-    createdAt: new Date()
+    createdAt: new Date(),
+    edited: false // default
   });
 
   return NextResponse.json({ success: true, comment: newComment }, { status: 201 });
+}
+
+export async function DELETE(req: Request) {
+  const { searchParams } = new URL(req.url);
+  const commentId = searchParams.get('id');
+  if (!commentId) {
+    return NextResponse.json({ error: 'Missing comment ID' }, { status: 400 });
+  }
+
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  await dbConnect();
+  const comment = await Comment.findById(commentId);
+  if (!comment) {
+    return NextResponse.json({ error: 'Comment not found' }, { status: 404 });
+  }
+
+  if (comment.userId.toString() !== session.user.id) {
+    return NextResponse.json({ error: 'Not allowed' }, { status: 403 });
+  }
+
+  await Comment.findByIdAndDelete(commentId);
+  return NextResponse.json({ success: true }, { status: 200 });
+}
+
+export async function PATCH(req: Request) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const { id, text } = await req.json();
+  if (!id || !text) {
+    return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
+  }
+
+  await dbConnect();
+  const comment = await Comment.findById(id);
+  if (!comment) {
+    return NextResponse.json({ error: 'Comment not found' }, { status: 404 });
+  }
+
+  if (comment.userId.toString() !== session.user.id) {
+    return NextResponse.json({ error: 'Not allowed' }, { status: 403 });
+  }
+
+  comment.text = text;
+  comment.edited = true;
+  await comment.save();
+
+  return NextResponse.json({ success: true }, { status: 200 });
 }

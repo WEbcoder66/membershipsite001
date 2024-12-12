@@ -1,4 +1,3 @@
-// src/components/Feed/Feed.tsx
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -57,12 +56,14 @@ export default function Feed({ setActiveTab }: FeedProps) {
     fetchContent();
   }, []);
 
-  const handleLike = (postId: string) => {
+  const handleLike = async (postId: string) => {
     if (!session?.user) {
       alert('Please sign in to like posts');
       return;
     }
 
+    // Optional: Call an API to persist like in DB if needed.
+    // For now, just toggle local state:
     setLikedPosts((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(postId)) {
@@ -86,6 +87,21 @@ export default function Feed({ setActiveTab }: FeedProps) {
     });
   };
 
+  // Callback from CommentSection to update comment count on the parent feed
+  const handleCommentsCountChange = (postId: string, newCount: number) => {
+    setContent(prevContent => {
+      return prevContent.map(item => {
+        if (item.id === postId) {
+          return {
+            ...item,
+            comments: newCount
+          };
+        }
+        return item;
+      });
+    });
+  };
+
   if (isLoading) {
     return (
       <div className="flex justify-center py-8">
@@ -104,7 +120,7 @@ export default function Feed({ setActiveTab }: FeedProps) {
         <div className="space-y-6">
           {content.map((post) => {
             const updatedLikes = (post.likes || 0) + (likedPosts.has(post.id) ? 1 : 0);
-            const updatedComments = post.comments ?? 0; // If comments field exists
+            const updatedComments = post.comments ?? 0;
 
             return (
               <div key={post.id}>
@@ -120,7 +136,10 @@ export default function Feed({ setActiveTab }: FeedProps) {
                 />
                 {expandedComments.has(post.id) && (
                   <ErrorBoundary fallback={<div className="p-4 bg-red-50 text-red-700">Error loading comments</div>}>
-                    <CommentSection contentId={post.id} />
+                    <CommentSection 
+                      contentId={post.id}
+                      onCommentsCountChange={(count) => handleCommentsCountChange(post.id, count)}
+                    />
                   </ErrorBoundary>
                 )}
               </div>

@@ -1,4 +1,3 @@
-// src/components/Feed/FeedItem.tsx
 'use client';
 
 import React, { memo } from 'react';
