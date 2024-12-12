@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import Image from 'next/image';
-import { ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X, Lock } from 'lucide-react';
 
 interface PhotoGalleryProps {
   images: string[];
   title?: string;
+  locked?: boolean;
 }
 
-const PhotoGallery: React.FC<PhotoGalleryProps> = ({ images, title }) => {
+const PhotoGallery: React.FC<PhotoGalleryProps> = ({ images, title, locked = false }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -30,7 +31,7 @@ const PhotoGallery: React.FC<PhotoGalleryProps> = ({ images, title }) => {
   };
 
   const openFullscreen = () => {
-    setIsFullscreen(true);
+    if (!locked) setIsFullscreen(true);
   };
 
   const closeFullscreen = () => {
@@ -38,14 +39,14 @@ const PhotoGallery: React.FC<PhotoGalleryProps> = ({ images, title }) => {
   };
 
   return (
-    <div className="max-w-3xl mx-auto bg-white shadow-md rounded-md overflow-hidden">
+    <div className="max-w-3xl mx-auto bg-white shadow-md rounded-md overflow-hidden relative">
       {title && (
         <div className="p-4 border-b">
           <h2 className="text-xl font-semibold">{title}</h2>
         </div>
       )}
 
-      <div className="relative bg-black" style={{ minHeight: 300 }}>
+      <div className={`relative bg-black ${locked ? 'filter blur-sm' : ''}`} style={{ minHeight: 300 }}>
         <div
           className="w-full h-[300px] sm:h-[500px] md:h-[600px] lg:h-[700px] relative cursor-pointer flex items-center justify-center"
           onClick={openFullscreen}
@@ -57,9 +58,17 @@ const PhotoGallery: React.FC<PhotoGalleryProps> = ({ images, title }) => {
             style={{ objectFit: 'contain', backgroundColor: 'black' }}
             priority
           />
+          {locked && (
+            <div className="absolute inset-0 bg-black/50 z-10 flex items-center justify-center">
+              <div className="text-white flex flex-col items-center">
+                <Lock className="w-12 h-12 mb-2" />
+                <p className="font-bold">Content Locked</p>
+              </div>
+            </div>
+          )}
         </div>
 
-        {images.length > 1 && (
+        {images.length > 1 && !locked && (
           <>
             <button
               onClick={prevImage}
@@ -77,14 +86,14 @@ const PhotoGallery: React.FC<PhotoGalleryProps> = ({ images, title }) => {
           </>
         )}
 
-        {images.length > 1 && (
+        {images.length > 1 && !locked && (
           <div className="absolute top-2 right-2 bg-gray-900 bg-opacity-75 text-white text-sm py-1 px-2 rounded">
             {currentIndex + 1} / {images.length}
           </div>
         )}
       </div>
 
-      {images.length > 1 && (
+      {images.length > 1 && !locked && (
         <div className="flex gap-2 p-4 overflow-x-auto border-b">
           {images.map((img, idx) => (
             <button
@@ -107,7 +116,7 @@ const PhotoGallery: React.FC<PhotoGalleryProps> = ({ images, title }) => {
         </div>
       )}
 
-      {isFullscreen && (
+      {isFullscreen && !locked && (
         <div
           className="fixed inset-0 z-50 bg-black bg-opacity-80 flex items-center justify-center p-4 cursor-pointer"
           onClick={closeFullscreen}

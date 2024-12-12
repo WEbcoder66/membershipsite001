@@ -1,12 +1,13 @@
 'use client';
 
 import React, { memo } from 'react';
-import { ThumbsUp, MessageCircle } from 'lucide-react';
+import { ThumbsUp, MessageCircle, Lock } from 'lucide-react';
 import { Content } from '@/lib/types';
 import VideoPlayer from '@/components/VideoPlayer';
 import PhotoGallery from '@/components/PhotoGallery';
 import AudioPlayer from '@/components/Feed/AudioPlayer';
 import PollComponent from '@/components/Feed/PollComponent';
+import { useSession } from 'next-auth/react';
 
 interface FeedItemProps {
   post: Content;
@@ -16,6 +17,13 @@ interface FeedItemProps {
 }
 
 function FeedItemBase({ post, onLike, onComment, setActiveTab }: FeedItemProps) {
+  const { data: session } = useSession();
+  const userTier = session?.user?.membershipTier ?? 'basic';
+
+  const requiredIndex = ['basic', 'premium', 'allAccess'].indexOf(post.tier);
+  const userIndex = ['basic', 'premium', 'allAccess'].indexOf(userTier);
+  const hasAccess = userIndex >= requiredIndex;
+
   const renderContent = () => {
     switch (post.type) {
       case 'video':
@@ -37,8 +45,26 @@ function FeedItemBase({ post, onLike, onComment, setActiveTab }: FeedItemProps) 
         if (post.mediaContent?.photo) {
           const images = post.mediaContent.photo.images;
           return (
-            <div className="p-4">
-              <PhotoGallery images={images} title={post.title} />
+            <div className="relative">
+              {!hasAccess && post.isLocked && (
+                <div className="absolute inset-0 bg-black/50 z-10 flex items-center justify-center">
+                  <div className="text-center p-6 text-white">
+                    <div className="w-16 h-16 rounded-full bg-black/30 flex items-center justify-center mx-auto mb-4">
+                      <Lock className="w-8 h-8 text-white" />
+                    </div>
+                    <h3 className="text-xl font-bold mb-4">
+                      Requires {post.tier} Access
+                    </h3>
+                    <button
+                      onClick={() => setActiveTab('membership')}
+                      className="bg-yellow-400 px-6 py-2 rounded-md font-semibold text-black hover:bg-yellow-500"
+                    >
+                      Upgrade Membership
+                    </button>
+                  </div>
+                </div>
+              )}
+              <PhotoGallery images={images} locked={post.isLocked && !hasAccess} />
             </div>
           );
         }
@@ -48,10 +74,17 @@ function FeedItemBase({ post, onLike, onComment, setActiveTab }: FeedItemProps) 
         if (post.mediaContent?.audio) {
           return (
             <div className="p-4">
-              <AudioPlayer
-                url={post.mediaContent.audio.url}
-                duration={post.mediaContent.audio.duration || 'Unknown'}
-              />
+              {!hasAccess && post.isLocked ? (
+                <div className="bg-black/50 text-white p-4 rounded">
+                  <Lock className="inline-block mr-2" />
+                  This audio is locked. Upgrade your membership to access.
+                </div>
+              ) : (
+                <AudioPlayer
+                  url={post.mediaContent.audio.url}
+                  duration={post.mediaContent.audio.duration || 'Unknown'}
+                />
+              )}
             </div>
           );
         }
@@ -61,12 +94,19 @@ function FeedItemBase({ post, onLike, onComment, setActiveTab }: FeedItemProps) 
         if (post.mediaContent?.poll) {
           return (
             <div className="p-4">
-              <PollComponent
-                options={post.mediaContent.poll.options}
-                endDate={post.mediaContent.poll.endDate}
-                multipleChoice={post.mediaContent.poll.multipleChoice}
-                postId={post.id}
-              />
+              {!hasAccess && post.isLocked ? (
+                <div className="bg-black/50 text-white p-4 rounded">
+                  <Lock className="inline-block mr-2" />
+                  This poll is locked. Upgrade your membership to access.
+                </div>
+              ) : (
+                <PollComponent
+                  options={post.mediaContent.poll.options}
+                  endDate={post.mediaContent.poll.endDate}
+                  multipleChoice={post.mediaContent.poll.multipleChoice}
+                  postId={post.id}
+                />
+              )}
             </div>
           );
         }
@@ -76,7 +116,14 @@ function FeedItemBase({ post, onLike, onComment, setActiveTab }: FeedItemProps) 
       default:
         return (
           <div className="p-4">
-            {post.description && <p className="text-gray-800">{post.description}</p>}
+            {!hasAccess && post.isLocked ? (
+              <div className="bg-black/50 text-white p-4 rounded">
+                <Lock className="inline-block mr-2" />
+                This post is locked. Upgrade your membership to access.
+              </div>
+            ) : (
+              <p className="text-gray-800">{post.description}</p>
+            )}
           </div>
         );
     }

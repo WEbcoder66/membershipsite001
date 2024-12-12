@@ -6,11 +6,26 @@ import Link from 'next/link';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
+  const [statusMessage, setStatusMessage] = useState('');
+  const [error, setError] = useState('');
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    // TODO: Implement your forgot password logic
-    alert('If an account with that email exists, a reset link has been sent.');
+    setStatusMessage('');
+    setError('');
+
+    const res = await fetch('/api/auth/forgot-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    });
+
+    const data = await res.json();
+    if (res.ok) {
+      setStatusMessage('If an account with that email exists, a reset link has been sent.');
+    } else {
+      setError(data.error || 'Failed to send reset link.');
+    }
   }
 
   return (
@@ -28,6 +43,18 @@ export default function ForgotPasswordPage() {
           <h1 className="text-2xl font-bold text-gray-800">Forgot Password</h1>
           <p className="text-sm text-gray-600 mt-2">Enter your email to reset your password</p>
         </div>
+
+        {statusMessage && (
+          <div className="mb-4 p-3 text-green-700 bg-green-50 rounded-lg border border-green-200 text-sm">
+            {statusMessage}
+          </div>
+        )}
+
+        {error && (
+          <div className="mb-4 p-3 text-red-700 bg-red-50 rounded-lg border border-red-200 text-sm">
+            {error}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>

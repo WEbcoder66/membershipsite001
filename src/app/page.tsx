@@ -1,4 +1,3 @@
-// src/app/page.tsx
 'use client';
 
 import ErrorBoundary from '@/components/ErrorBoundary';
@@ -18,6 +17,17 @@ import AboutContent from '@/components/AboutContent';
 import MembershipTiers from '@/components/MembershipTiers';
 import { useSession, signOut } from 'next-auth/react';
 
+// Simulating fetching subscriberCount and postCount from API
+async function fetchCounts() {
+  // Replace with a real API call, e.g., `/api/stats`
+  const res = await fetch('/api/stats');
+  if (!res.ok) {
+    return { subscriberCount: 0, postCount: 0, hideSubscriberCount: false };
+  }
+  const data = await res.json();
+  return data;
+}
+
 const socialLinks = [
   { icon: Facebook, href: 'https://facebook.com', label: 'Facebook' },
   { icon: Twitter, href: 'https://twitter.com', label: 'Twitter' },
@@ -35,12 +45,36 @@ export default function Home() {
   const { data: session } = useSession();
   const user = session?.user;
 
+  const [subscriberCount, setSubscriberCount] = useState<number>(0);
+  const [postCount, setPostCount] = useState<number>(0);
+  const [hideSubscriberCount, setHideSubscriberCount] = useState<boolean>(false);
+
   useEffect(() => {
     const shouldShowMembership = localStorage.getItem('returnToMembership');
     if (shouldShowMembership) {
       localStorage.removeItem('returnToMembership');
       setActiveTab('membership');
     }
+  }, []);
+
+  useEffect(() => {
+    // Polling for updated counts every 10 seconds
+    const interval = setInterval(async () => {
+      const { subscriberCount, postCount, hideSubscriberCount } = await fetchCounts();
+      setSubscriberCount(subscriberCount);
+      setPostCount(postCount);
+      setHideSubscriberCount(hideSubscriberCount);
+    }, 10000);
+
+    // Initial fetch
+    (async () => {
+      const { subscriberCount, postCount, hideSubscriberCount } = await fetchCounts();
+      setSubscriberCount(subscriberCount);
+      setPostCount(postCount);
+      setHideSubscriberCount(hideSubscriberCount);
+    })();
+
+    return () => clearInterval(interval);
   }, []);
 
   const handleSetActiveTab = (tab: string) => {
@@ -87,10 +121,10 @@ export default function Home() {
                   </span>
                 )}
                 <a
-                  href="/auth/account"
+                  href="/auth/profile"
                   className="bg-yellow-400 px-4 py-2 rounded-md font-semibold text-black hover:bg-yellow-500 transition-colors"
                 >
-                  Account Settings
+                  Profile
                 </a>
                 <button 
                   onClick={() => signOut({ callbackUrl: '/' })}
@@ -124,7 +158,7 @@ export default function Home() {
         <h1 className="mt-4 text-3xl font-bold text-gray-900">Super dope membership site</h1>
         <p className="mt-2 text-gray-600">This can be your membership site!</p>
         <p className="mt-2 text-gray-700 font-medium">
-          1,543 subscribers · 15 posts
+          {hideSubscriberCount ? '' : `${subscriberCount} subscribers · `}{postCount} posts
         </p>
         
         {!user && (

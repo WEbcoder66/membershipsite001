@@ -42,7 +42,7 @@ export default function ContentManager() {
 
   const [pollOptions, setPollOptions] = useState<string[]>(['', '']);
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
   const [editingContent, setEditingContent] = useState<{
     id: string;
@@ -91,13 +91,11 @@ export default function ContentManager() {
   const resetForm = () => {
     setTitle('');
     setDescription('');
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
     setPollOptions(['', '']);
     setError(null);
     setContentType('video');
     setMembershipTier('basic');
+    setSelectedFiles([]);
   };
 
   async function uploadFileToSpaces(file: File): Promise<string> {
@@ -130,7 +128,7 @@ export default function ContentManager() {
     return `https://${bucketName}.${region}.digitaloceanspaces.com/${fileName}`;
   }
 
-  async function handleCreateContent(files: File[]) {
+  async function handleCreateContent() {
     if (!userEmail) {
       setError('No user email found');
       return;
@@ -149,8 +147,13 @@ export default function ContentManager() {
       }
     }
 
-    if ((contentType === 'video' || contentType === 'photo' || contentType === 'audio') && files.length === 0) {
+    if ((contentType === 'video' || contentType === 'photo' || contentType === 'audio') && selectedFiles.length === 0) {
       setError('Please select a file to upload.');
+      return;
+    }
+
+    if (contentType === 'video' && selectedFiles.length > 1) {
+      setError('Only one video is allowed per upload.');
       return;
     }
 
@@ -161,14 +164,14 @@ export default function ContentManager() {
       let mediaContent: any = {};
 
       if (contentType === 'video' || contentType === 'audio') {
-        const file = files[0];
+        const file = selectedFiles[0];
         const fileUrl = await uploadFileToSpaces(file);
         mediaContent = {
-          [contentType]: { videoId: fileUrl }
+          [contentType]: { videoId: fileUrl, url: fileUrl }
         };
       } else if (contentType === 'photo') {
         const imageUrls: string[] = [];
-        for (const file of files) {
+        for (const file of selectedFiles) {
           const fileUrl = await uploadFileToSpaces(file);
           imageUrls.push(fileUrl);
         }
@@ -180,18 +183,7 @@ export default function ContentManager() {
       } else if (contentType === 'post') {
         mediaContent = {};
       } else if (contentType === 'poll') {
-        const validOptions = pollOptions.filter(opt => opt.trim());
-        const pollObject = validOptions.reduce((acc: any, opt: string) => {
-          acc[opt] = 0;
-          return acc;
-        }, {});
-        mediaContent = {
-          poll: {
-            options: pollObject,
-            endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-            multipleChoice: false
-          }
-        };
+        // handled in API route via pollOptions
       }
 
       const contentRes = await fetch('/api/content', {
@@ -205,7 +197,8 @@ export default function ContentManager() {
           title,
           description,
           tier: membershipTier,
-          mediaContent
+          mediaContent: contentType === 'poll' ? undefined : mediaContent,
+          pollOptions: contentType === 'poll' ? pollOptions : undefined
         })
       });
 
@@ -218,32 +211,11 @@ export default function ContentManager() {
       resetForm();
       fetchContent();
 
-      // If it's post or photo or poll, add to feed
-      if (contentType === 'post' || contentType === 'photo' || contentType === 'poll') {
-        await handleAddToFeed(contentData.data);
-      }
-
     } catch (err: any) {
       console.error('Upload error:', err);
       setError(err.message || 'Failed to upload content. Please try again.');
     } finally {
       setIsUploading(false);
-    }
-  }
-
-  async function handleAddToFeed(postData: Content) {
-    try {
-      const response = await fetch('/api/feed', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ postId: postData.id })
-      });
-      if (!response.ok) {
-        throw new Error('Failed to add post to feed.');
-      }
-      console.log('Post added to feed successfully!');
-    } catch (err) {
-      console.error('Add to feed error:', err);
     }
   }
 
@@ -316,7 +288,19 @@ export default function ContentManager() {
     : contentType === 'photo' ? 'image/*'
     : contentType === 'audio' ? 'audio/*'
     : undefined;
-  const fileMultiple = contentType === 'photo';
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files ? Array.from(e.target.files) : [];
+    if (contentType === 'video' && files.length > 1) {
+      alert('Only one video allowed per upload.');
+      return;
+    }
+    setSelectedFiles(files);
+  };
+
+  const removeFile = (index: number) => {
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+  };
 
   return (
     <div className="bg-white rounded-lg shadow-lg p-6">
@@ -365,6 +349,7 @@ export default function ContentManager() {
                   onClick={() => {
                     setContentType(type);
                     setPollOptions(['','']);
+                    setSelectedFiles([]);
                   }}
                   className={`p-4 rounded-lg border-2 flex flex-col items-center gap-2 transition-colors ${
                     contentType === type
@@ -424,7 +409,7 @@ export default function ContentManager() {
             </select>
           </div>
 
-          {/* Poll Options if contentType === 'poll' */}
+          {/* Poll Options if poll */}
           {contentType === 'poll' && (
             <div className="mb-6">
               <label className="block text-sm font-medium text-gray-700 mb-2">Poll Options</label>
@@ -447,6 +432,7 @@ export default function ContentManager() {
                         onClick={() => {
                           setPollOptions(pollOptions.filter((_, i) => i !== index));
                         }}
+                        type="button"
                         className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
                       >
                         <X className="w-5 h-5" />
@@ -456,6 +442,7 @@ export default function ContentManager() {
                 ))}
                 <button
                   onClick={() => setPollOptions([...pollOptions, ''])}
+                  type="button"
                   className="flex items-center gap-2 text-yellow-600 hover:text-yellow-700"
                 >
                   <PlusCircle className="w-4 h-4" />
@@ -465,18 +452,9 @@ export default function ContentManager() {
             </div>
           )}
 
-          {/* File Upload Section for video/photo/audio */}
+          {/* File Upload for video/photo/audio */}
           {(contentType === 'video' || contentType === 'photo' || contentType === 'audio') && (
-            <div
-              className="border-2 border-dashed rounded-lg p-8 text-center border-gray-300"
-            >
-              <input
-                ref={fileInputRef}
-                type="file"
-                className="hidden"
-                accept={fileAccept}
-                multiple={fileMultiple}
-              />
+            <div className="border-2 border-dashed rounded-lg p-8 text-center border-gray-300 mb-6">
               {isUploading ? (
                 <div className="flex flex-col items-center">
                   <Loader2 className="w-8 h-8 text-yellow-400 animate-spin mb-2" />
@@ -484,27 +462,50 @@ export default function ContentManager() {
                 </div>
               ) : (
                 <>
-                  <Upload className="w-8 h-8 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-600 mb-2">
-                    Drag and drop your file{fileMultiple ? 's' : ''} here, or click to browse
-                  </p>
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="bg-yellow-400 px-4 py-2 rounded-lg font-medium hover:bg-yellow-500 text-black"
-                  >
-                    Select File{fileMultiple ? 's' : ''}
-                  </button>
+                  <input
+                    type="file"
+                    accept={fileAccept}
+                    multiple={contentType === 'photo'}
+                    onChange={handleFileChange}
+                    className="hidden"
+                    id="fileInput"
+                  />
+                  <label htmlFor="fileInput" className="cursor-pointer flex flex-col items-center">
+                    <Upload className="w-8 h-8 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-600 mb-2">
+                      Drag and drop your file(s) here, or click to browse
+                    </p>
+                    <span className="bg-yellow-400 px-4 py-2 rounded-lg font-medium hover:bg-yellow-500 text-black">
+                      Select File{contentType === 'photo' ? 's' : ''}
+                    </span>
+                  </label>
                 </>
+              )}
+              {selectedFiles.length > 0 && (
+                <div className="mt-4 text-left">
+                  <p className="font-medium mb-2">Selected Files:</p>
+                  <ul className="space-y-2">
+                    {selectedFiles.map((file, i) => (
+                      <li key={i} className="flex items-center justify-between text-sm text-gray-700">
+                        <span>{file.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => removeFile(i)}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               )}
             </div>
           )}
 
           {/* Upload Button */}
           <button
-            onClick={async () => {
-              const files = fileInputRef.current?.files ? Array.from(fileInputRef.current.files) : [];
-              await handleCreateContent(files);
-            }}
+            onClick={handleCreateContent}
             disabled={isUploading}
             className="w-full mt-4 bg-yellow-400 text-black py-3 rounded-lg font-medium hover:bg-yellow-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >

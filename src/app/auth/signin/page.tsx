@@ -24,7 +24,12 @@ export default function SignInPage() {
       // Signed in successfully
       window.location.href = '/';
     } else {
-      setErrorMsg(res?.error ?? 'Failed to sign in');
+      // If error is "CredentialsSignin", show "Incorrect password."
+      if (res?.error === 'CredentialsSignin') {
+        setErrorMsg('Incorrect password');
+      } else {
+        setErrorMsg(res?.error ?? 'Failed to sign in');
+      }
     }
   }
 

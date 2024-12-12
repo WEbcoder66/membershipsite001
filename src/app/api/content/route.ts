@@ -1,24 +1,8 @@
-// src/app/api/content/route.ts
 import { NextResponse } from 'next/server';
 import { validateAdmin } from '@/lib/auth';
 import dbConnect from '@/lib/mongodb';
 import Content from '@/models/Content';
 import mongoose from 'mongoose';
-
-interface ILeanContent {
-  _id: mongoose.Types.ObjectId;
-  type: 'video' | 'photo' | 'audio' | 'post' | 'poll';
-  title: string;
-  description?: string;
-  createdAt: Date;
-  updatedAt: Date;
-  tier: 'basic' | 'premium' | 'allAccess';
-  isLocked: boolean;
-  mediaContent?: Record<string, any>;
-  likes: number;
-  comments: number;
-  views: number;
-}
 
 export async function GET() {
   try {
@@ -27,7 +11,7 @@ export async function GET() {
       .sort({ createdAt: -1 })
       .lean();
 
-    const allContent = rawResult as unknown as ILeanContent[];
+    const allContent = rawResult as any[];
 
     const formattedContent = allContent.map(item => ({
       ...item,
@@ -53,22 +37,44 @@ export async function POST(req: Request) {
     }
 
     await dbConnect();
-    const { type, title, description, tier, mediaContent } = await req.json();
+    const { type, title, description, tier, mediaContent, pollOptions } = await req.json();
 
     if (!type || !title || !tier) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    const newContent = await Content.create({
+    const newContentData: any = {
       type,
       title,
       description,
       tier,
-      mediaContent,
-      isLocked: true,
+      isLocked: (type !== 'post'), // For example, consider all non-post content locked by default
       createdAt: new Date(),
       updatedAt: new Date()
-    });
+    };
+
+    if (type === 'poll') {
+      // pollOptions expected as an array of strings
+      if (!Array.isArray(pollOptions) || pollOptions.length < 2) {
+        return NextResponse.json({ error: 'Poll requires at least 2 options' }, { status: 400 });
+      }
+      const validOptions = pollOptions.filter((opt: string) => opt.trim());
+      const pollObject = validOptions.reduce((acc: any, opt: string) => {
+        acc[opt] = 0;
+        return acc;
+      }, {});
+      newContentData.mediaContent = {
+        poll: {
+          options: pollObject,
+          endDate: new Date(Date.now() + 7*24*60*60*1000),
+          multipleChoice: false
+        }
+      };
+    } else {
+      newContentData.mediaContent = mediaContent || {};
+    }
+
+    const newContent = await Content.create(newContentData);
 
     return NextResponse.json({
       success: true,
@@ -140,8 +146,7 @@ export async function PATCH(req: Request) {
     if (description !== undefined) updateData.description = description;
     if (tier) updateData.tier = tier;
 
-    // If pollOptions are provided and we're dealing with a poll or want to update poll
-    if (Array.isArray(pollOptions)) {
+    if (pollOptions && Array.isArray(pollOptions)) {
       const validOptions = pollOptions.filter((opt: string) => opt.trim());
       if (validOptions.length >= 2) {
         const pollObject = validOptions.reduce((acc: any, opt: string) => {
@@ -154,7 +159,6 @@ export async function PATCH(req: Request) {
           multipleChoice: false
         };
       } else {
-        // If no valid poll or less than 2 options, remove poll
         updateData['mediaContent.poll'] = undefined;
       }
     }

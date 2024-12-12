@@ -7,7 +7,7 @@ import { signIn } from "next-auth/react";
 
 export default function SignUpPage() {
   const [email, setEmail] = useState('');
-  const [name, setName] = useState('');
+  const [username, setUsername] = useState(''); // Changed from name to username
   const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -19,7 +19,7 @@ export default function SignUpPage() {
       const res = await fetch('/api/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, password }),
+        body: JSON.stringify({ name: username, email, password }),
       });
 
       const data = await res.json();
@@ -27,7 +27,7 @@ export default function SignUpPage() {
       if (!res.ok) {
         setErrorMsg(data.error || 'An error occurred during signup.');
       } else {
-        // Automatically sign in the user after successful signup
+        // Automatically sign in the user
         const signInRes = await signIn('credentials', {
           redirect: false,
           email,
@@ -35,9 +35,8 @@ export default function SignUpPage() {
         });
 
         if (signInRes && !signInRes.error) {
-          window.location.href = '/'; // Redirect to homepage signed in
+          window.location.href = '/';
         } else {
-          // If sign-in after signup fails, redirect to sign in page
           alert('Account created but sign-in failed, please sign in manually.');
           window.location.href = '/auth/signin';
         }
@@ -52,6 +51,7 @@ export default function SignUpPage() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-200 p-4">
       <div className="w-full max-w-sm bg-white rounded-lg shadow-lg p-6">
         <div className="text-center mb-6">
+          {/* Removed any top image if it existed; now just the logo */}
           <div className="w-16 h-16 mx-auto relative mb-4">
             <Image
               src="/favicon.ico"
@@ -72,13 +72,13 @@ export default function SignUpPage() {
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
-            <label className="block mb-1 text-sm font-medium text-gray-700" htmlFor="name">Name</label>
+            <label className="block mb-1 text-sm font-medium text-gray-700" htmlFor="username">Username</label>
             <input
-              id="name"
-              value={name}
-              onChange={e => setName(e.target.value)}
+              id="username"
+              value={username}
+              onChange={e => setUsername(e.target.value)}
               type="text"
-              placeholder="Your Name"
+              placeholder="Your Username"
               className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400 focus:outline-none text-gray-800"
               required
             />
