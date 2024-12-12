@@ -98,10 +98,11 @@ export default function ContentPage() {
                 thumbnail={content.mediaContent.video.thumbnail}
                 requiredTier={content.tier}
                 setActiveTab={() => {}}
+                locked={content.isLocked && !hasAccess}
               />
             )}
 
-            {!hasAccess && (
+            {!hasAccess && content.isLocked && content.type !== 'video' && (
               <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
                 <div className="text-center p-6">
                   <div className="w-16 h-16 rounded-full bg-black/30 flex items-center justify-center mx-auto mb-4">
@@ -135,9 +136,13 @@ export default function ContentPage() {
               </span>
             </div>
             
-            <p className="text-gray-600 whitespace-pre-wrap">
-              {content.description}
-            </p>
+            {!content.isLocked || hasAccess ? (
+              <p className="text-gray-600 whitespace-pre-wrap">
+                {content.description}
+              </p>
+            ) : (
+              <p className="text-gray-500 italic">Content locked. Upgrade to view.</p>
+            )}
 
             <div className="mt-4 text-sm text-gray-500">
               Posted on {new Date(content.createdAt).toLocaleDateString()}

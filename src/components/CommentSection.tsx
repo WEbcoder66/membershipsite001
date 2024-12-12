@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { PenTool } from 'lucide-react';
 
@@ -19,7 +19,7 @@ interface Comment {
 interface CommentSectionProps {
   contentId: string;
   currentUserId?: string; 
-  onCommentsCountChange?: (count: number) => void; // Callback to update parent counts
+  onCommentsCountChange?: (count: number) => void;
 }
 
 function formatTimestamp(dateString: string, edited?: boolean) {
@@ -57,18 +57,18 @@ export default function CommentSection({ contentId, onCommentsCountChange }: Com
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
 
-  useEffect(() => {
-    fetchComments();
-  }, [contentId]);
-
-  async function fetchComments() {
+  const fetchComments = useCallback(async () => {
     const res = await fetch(`/api/comments?contentId=${contentId}`);
     const data = await res.json();
     if (data.success) {
       setComments(data.comments);
       onCommentsCountChange?.(data.comments.length);
     }
-  }
+  }, [contentId, onCommentsCountChange]);
+
+  useEffect(() => {
+    fetchComments();
+  }, [fetchComments]);
 
   async function postComment() {
     if (!commentText.trim()) return;
@@ -110,7 +110,6 @@ export default function CommentSection({ contentId, onCommentsCountChange }: Com
   }
 
   async function editComment(commentId: string) {
-    // Save edited text
     if (!editText.trim()) return;
     const res = await fetch('/api/comments', {
       method: 'PATCH',
@@ -201,7 +200,6 @@ export default function CommentSection({ contentId, onCommentsCountChange }: Com
                   <div className="absolute top-2 right-2">
                     <button
                       onClick={() => {
-                        // toggle menu
                         setShowMenuFor(showMenuFor === comment._id ? null : comment._id);
                       }}
                       className="text-gray-600 hover:text-gray-800"

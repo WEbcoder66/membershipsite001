@@ -3,21 +3,14 @@
 import ErrorBoundary from '@/components/ErrorBoundary';
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
-import { 
-  AlertCircle,
-  Facebook, 
-  Twitter, 
-  Instagram, 
-  Youtube,
-  LinkedinIcon
-} from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import Feed from '@/components/Feed/Feed';
 import AboutContent from '@/components/AboutContent';
 import MembershipTiers from '@/components/MembershipTiers';
 import { useSession, signOut } from 'next-auth/react';
 
-// Simulating fetching subscriberCount and postCount from API
+// Simulating fetching subscriber and post counts
 async function fetchCounts() {
   // Replace with a real API call, e.g., `/api/stats`
   const res = await fetch('/api/stats');
@@ -27,14 +20,6 @@ async function fetchCounts() {
   const data = await res.json();
   return data;
 }
-
-const socialLinks = [
-  { icon: Facebook, href: 'https://facebook.com', label: 'Facebook' },
-  { icon: Twitter, href: 'https://twitter.com', label: 'Twitter' },
-  { icon: Instagram, href: 'https://instagram.com', label: 'Instagram' },
-  { icon: Youtube, href: 'https://youtube.com', label: 'YouTube' },
-  { icon: LinkedinIcon, href: 'https://linkedin.com', label: 'LinkedIn' }
-] as const;
 
 const TABS = ['home', 'about', 'membership',] as const;
 type TabId = typeof TABS[number];
@@ -170,20 +155,7 @@ export default function Home() {
           </button>
         )}
 
-        <div className="flex justify-center gap-4 mt-4">
-          {socialLinks.map(({ icon: Icon, href, label }) => (
-            <a
-              key={label}
-              href={href}
-              className="p-2 bg-gray-200 rounded-md hover:bg-gray-300 transition-colors"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <Icon className="w-5 h-5 text-gray-600" />
-              <span className="sr-only">{label}</span>
-            </a>
-          ))}
-        </div>
+        {/* Social Links Removed */}
       </div>
 
       {/* Navigation */}

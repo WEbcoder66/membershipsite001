@@ -1,4 +1,3 @@
-// src/models/Content.ts
 import mongoose, { Document } from 'mongoose';
 
 type ContentType = 'video' | 'photo' | 'audio' | 'post';
@@ -13,7 +12,7 @@ interface VideoContent {
 }
 
 interface PhotoContent {
-  images: string[]; // Can hold one or multiple image URLs
+  images: string[];
 }
 
 interface AudioContent {
@@ -27,7 +26,6 @@ interface PollContent {
   multipleChoice?: boolean;
 }
 
-// Define interfaces for strongly typed schema
 interface IContent extends Document {
   type: ContentType;
   title: string;
@@ -45,6 +43,7 @@ interface IContent extends Document {
   likes: number;
   comments: number;
   views: number;
+  likedBy: string[]; // Add this array to track who liked the content
 }
 
 const ContentSchema = new mongoose.Schema<IContent>({
@@ -78,12 +77,7 @@ const ContentSchema = new mongoose.Schema<IContent>({
   },
   mediaContent: {
     video: {
-      videoId: {
-        type: String,
-        required: function(this: IContent) {
-          return this.type === 'video';
-        }
-      },
+      videoId: { type: String, required: function(this: IContent) { return this.type === 'video'; } },
       url: String,
       thumbnail: String,
       duration: String,
@@ -92,9 +86,7 @@ const ContentSchema = new mongoose.Schema<IContent>({
     photo: {
       images: {
         type: [String],
-        required: function(this: IContent) {
-          return this.type === 'photo';
-        }
+        required: function(this: IContent) { return this.type === 'photo'; }
       }
     },
     audio: {
@@ -118,28 +110,25 @@ const ContentSchema = new mongoose.Schema<IContent>({
   views: {
     type: Number,
     default: 0
+  },
+  likedBy: {
+    type: [String],
+    default: []
   }
 }, {
   timestamps: true,
   collection: 'contents'
 });
 
-// Add a pre-save middleware to validate video content if needed
 ContentSchema.pre('save', function(this: IContent, next) {
   if (this.type === 'video' && (!this.mediaContent?.video?.videoId)) {
     return next(new Error('Video content requires a videoId'));
   }
-  // If needed, add similar checks for photo content here
-  // e.g., if (this.type === 'photo' && (!this.mediaContent?.photo?.images?.length)) {
-  //   return next(new Error('Photo content requires at least one image'));
-  // }
   next();
 });
 
-// Add compound index for efficient queries
 ContentSchema.index({ type: 1, tier: 1, createdAt: -1 });
 
-// Check if model exists before creating
 const Content = mongoose.models.Content || mongoose.model<IContent>('Content', ContentSchema);
 
 export default Content;
