@@ -9,6 +9,14 @@ import AudioPlayer from '@/components/Feed/AudioPlayer';
 import PollComponent from '@/components/Feed/PollComponent';
 import { useSession } from 'next-auth/react';
 
+// Determine if user has access based on tier
+function hasAccess(userTier: string, contentTier: string): boolean {
+  const tiers = ['basic', 'premium', 'allAccess'];
+  const userIndex = tiers.indexOf(userTier);
+  const contentIndex = tiers.indexOf(contentTier);
+  return userIndex >= contentIndex;
+}
+
 interface FeedItemProps {
   post: Content;
   onLike: (postId: string) => void;
@@ -19,12 +27,7 @@ interface FeedItemProps {
 function FeedItemBase({ post, onLike, onComment, setActiveTab }: FeedItemProps) {
   const { data: session } = useSession();
   const userTier = session?.user?.membershipTier ?? 'basic';
-
-  const requiredIndex = ['basic', 'premium', 'allAccess'].indexOf(post.tier);
-  const userIndex = ['basic', 'premium', 'allAccess'].indexOf(userTier);
-  const hasAccess = userIndex >= requiredIndex;
-
-  const isLockedAndNoAccess = post.isLocked && !hasAccess;
+  const contentLocked = !hasAccess(userTier, post.tier);
 
   const renderContent = () => {
     switch (post.type) {
@@ -32,7 +35,7 @@ function FeedItemBase({ post, onLike, onComment, setActiveTab }: FeedItemProps) 
         if (post.mediaContent?.video) {
           return (
             <div className="relative">
-              {isLockedAndNoAccess && (
+              {contentLocked && (
                 <div className="absolute inset-0 bg-black/50 z-10 flex items-center justify-center">
                   <div className="text-center p-6 text-white">
                     <div className="w-16 h-16 rounded-full bg-black/30 flex items-center justify-center mx-auto mb-4">
@@ -55,7 +58,7 @@ function FeedItemBase({ post, onLike, onComment, setActiveTab }: FeedItemProps) 
                 thumbnail={post.mediaContent.video.thumbnail}
                 requiredTier={post.tier}
                 setActiveTab={setActiveTab}
-                locked={isLockedAndNoAccess}
+                locked={contentLocked}
               />
             </div>
           );
@@ -67,7 +70,7 @@ function FeedItemBase({ post, onLike, onComment, setActiveTab }: FeedItemProps) 
           const images = post.mediaContent.photo.images;
           return (
             <div className="relative">
-              {isLockedAndNoAccess && (
+              {contentLocked && (
                 <div className="absolute inset-0 bg-black/50 z-10 flex items-center justify-center">
                   <div className="text-center p-6 text-white">
                     <div className="w-16 h-16 rounded-full bg-black/30 flex items-center justify-center mx-auto mb-4">
@@ -85,7 +88,7 @@ function FeedItemBase({ post, onLike, onComment, setActiveTab }: FeedItemProps) 
                   </div>
                 </div>
               )}
-              <PhotoGallery images={images} />
+              {!contentLocked && <PhotoGallery images={images} />}
             </div>
           );
         }
@@ -95,7 +98,7 @@ function FeedItemBase({ post, onLike, onComment, setActiveTab }: FeedItemProps) 
         if (post.mediaContent?.audio) {
           return (
             <div className="p-4 relative">
-              {isLockedAndNoAccess && (
+              {contentLocked && (
                 <div className="absolute inset-0 bg-black/50 z-10 flex items-center justify-center">
                   <div className="text-center p-6 text-white">
                     <div className="w-16 h-16 rounded-full bg-black/30 flex items-center justify-center mx-auto mb-4">
@@ -113,7 +116,7 @@ function FeedItemBase({ post, onLike, onComment, setActiveTab }: FeedItemProps) 
                   </div>
                 </div>
               )}
-              {!isLockedAndNoAccess && (
+              {!contentLocked && (
                 <AudioPlayer
                   url={post.mediaContent.audio.url}
                   duration={post.mediaContent.audio.duration || 'Unknown'}
@@ -128,7 +131,7 @@ function FeedItemBase({ post, onLike, onComment, setActiveTab }: FeedItemProps) 
         if (post.mediaContent?.poll) {
           return (
             <div className="p-4 relative">
-              {isLockedAndNoAccess && (
+              {contentLocked && (
                 <div className="absolute inset-0 bg-black/50 z-10 flex items-center justify-center">
                   <div className="text-center p-6 text-white">
                     <div className="w-16 h-16 rounded-full bg-black/30 flex items-center justify-center mx-auto mb-4">
@@ -146,9 +149,9 @@ function FeedItemBase({ post, onLike, onComment, setActiveTab }: FeedItemProps) 
                   </div>
                 </div>
               )}
-              {!isLockedAndNoAccess && (
+              {!contentLocked && (
                 <PollComponent
-                  options={post.mediaContent.poll.options}
+                  options={post.mediaContent.poll.options || {}}
                   endDate={post.mediaContent.poll.endDate}
                   multipleChoice={post.mediaContent.poll.multipleChoice}
                   postId={post.id}
@@ -163,7 +166,7 @@ function FeedItemBase({ post, onLike, onComment, setActiveTab }: FeedItemProps) 
       default:
         return (
           <div className="p-4 relative">
-            {isLockedAndNoAccess && (
+            {contentLocked && (
               <div className="absolute inset-0 bg-black/50 z-10 flex items-center justify-center">
                 <div className="text-center p-6 text-white">
                   <div className="w-16 h-16 rounded-full bg-black/30 flex items-center justify-center mx-auto mb-4">
@@ -181,7 +184,7 @@ function FeedItemBase({ post, onLike, onComment, setActiveTab }: FeedItemProps) 
                 </div>
               </div>
             )}
-            {!isLockedAndNoAccess && <p className="text-gray-800">{post.description}</p>}
+            {!contentLocked && <p className="text-gray-800">{post.description}</p>}
           </div>
         );
     }

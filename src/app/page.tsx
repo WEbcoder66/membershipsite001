@@ -10,9 +10,7 @@ import AboutContent from '@/components/AboutContent';
 import MembershipTiers from '@/components/MembershipTiers';
 import { useSession, signOut } from 'next-auth/react';
 
-// Simulating fetching subscriber and post counts
 async function fetchCounts() {
-  // Replace with a real API call, e.g., `/api/stats`
   const res = await fetch('/api/stats');
   if (!res.ok) {
     return { subscriberCount: 0, postCount: 0, hideSubscriberCount: false };
@@ -21,7 +19,7 @@ async function fetchCounts() {
   return data;
 }
 
-const TABS = ['home', 'about', 'membership',] as const;
+const TABS = ['home', 'about', 'membership'] as const;
 type TabId = typeof TABS[number];
 
 export default function Home() {
@@ -43,7 +41,6 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    // Polling for updated counts every 10 seconds
     const interval = setInterval(async () => {
       const { subscriberCount, postCount, hideSubscriberCount } = await fetchCounts();
       setSubscriberCount(subscriberCount);
@@ -51,7 +48,6 @@ export default function Home() {
       setHideSubscriberCount(hideSubscriberCount);
     }, 10000);
 
-    // Initial fetch
     (async () => {
       const { subscriberCount, postCount, hideSubscriberCount } = await fetchCounts();
       setSubscriberCount(subscriberCount);
@@ -84,7 +80,6 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Header */}
       <header className="relative h-64 bg-gray-800 overflow-hidden">
         <Image 
           src="/images/banners/banner.jpg"
@@ -130,7 +125,6 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Profile Section */}
       <div className="relative -mt-20 text-center px-4">
         <div className="w-40 h-40 mx-auto bg-white rounded-full overflow-hidden border-4 border-white relative">
           <Image 
@@ -154,11 +148,8 @@ export default function Home() {
             Join Now
           </button>
         )}
-
-        {/* Social Links Removed */}
       </div>
 
-      {/* Navigation */}
       <nav className="mt-8 border-b">
         <div className="max-w-4xl mx-auto px-4">
           <div className="flex gap-8">
@@ -179,7 +170,6 @@ export default function Home() {
         </div>
       </nav>
 
-      {/* Main Content */}
       <main className="py-8">
         {showWelcome && user?.membershipTier && (
           <div className="max-w-4xl mx-auto px-4 mb-8">

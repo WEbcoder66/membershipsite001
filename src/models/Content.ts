@@ -1,30 +1,7 @@
 import mongoose, { Document } from 'mongoose';
 
-type ContentType = 'video' | 'photo' | 'audio' | 'post';
+type ContentType = 'video' | 'photo' | 'audio' | 'post' | 'poll';
 type MembershipTier = 'basic' | 'premium' | 'allAccess';
-
-interface VideoContent {
-  videoId: string;
-  url?: string;
-  thumbnail?: string;
-  duration?: string;
-  title?: string;
-}
-
-interface PhotoContent {
-  images: string[];
-}
-
-interface AudioContent {
-  url?: string;
-  duration?: string;
-}
-
-interface PollContent {
-  options?: Record<string, number>;
-  endDate?: Date;
-  multipleChoice?: boolean;
-}
 
 interface IContent extends Document {
   type: ContentType;
@@ -33,24 +10,38 @@ interface IContent extends Document {
   createdAt: Date;
   updatedAt: Date;
   tier: MembershipTier;
-  isLocked: boolean;
   mediaContent?: {
-    video?: VideoContent;
-    photo?: PhotoContent;
-    audio?: AudioContent;
-    poll?: PollContent;
+    video?: {
+      videoId: string;
+      url?: string;
+      thumbnail?: string;
+      duration?: string;
+      title?: string;
+    };
+    photo?: {
+      images: string[];
+    };
+    audio?: {
+      url?: string;
+      duration?: string;
+    };
+    poll?: {
+      options?: Record<string, number>;
+      endDate?: Date;
+      multipleChoice?: boolean;
+    };
   };
   likes: number;
   comments: number;
   views: number;
-  likedBy: string[]; // Add this array to track who liked the content
+  likedBy: string[];
 }
 
 const ContentSchema = new mongoose.Schema<IContent>({
   type: {
     type: String,
     required: true,
-    enum: ['video', 'photo', 'audio', 'post']
+    enum: ['video', 'photo', 'audio', 'post', 'poll']
   },
   title: {
     type: String,
@@ -71,23 +62,16 @@ const ContentSchema = new mongoose.Schema<IContent>({
     enum: ['basic', 'premium', 'allAccess'],
     default: 'basic'
   },
-  isLocked: {
-    type: Boolean,
-    default: true
-  },
   mediaContent: {
     video: {
-      videoId: { type: String, required: function(this: IContent) { return this.type === 'video'; } },
+      videoId: { type: String },
       url: String,
       thumbnail: String,
       duration: String,
       title: String
     },
     photo: {
-      images: {
-        type: [String],
-        required: function(this: IContent) { return this.type === 'photo'; }
-      }
+      images: { type: [String] }
     },
     audio: {
       url: String,
@@ -118,13 +102,6 @@ const ContentSchema = new mongoose.Schema<IContent>({
 }, {
   timestamps: true,
   collection: 'contents'
-});
-
-ContentSchema.pre('save', function(this: IContent, next) {
-  if (this.type === 'video' && (!this.mediaContent?.video?.videoId)) {
-    return next(new Error('Video content requires a videoId'));
-  }
-  next();
 });
 
 ContentSchema.index({ type: 1, tier: 1, createdAt: -1 });

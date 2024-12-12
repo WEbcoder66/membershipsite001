@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/authOptions';
 import dbConnect from '@/lib/mongodb';
 import Comment from '@/models/Comment';
+import Content from '@/models/Content';
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -37,8 +38,10 @@ export async function POST(req: Request) {
     username: session.user.name,
     avatar: session.user.image,
     createdAt: new Date(),
-    edited: false // default
   });
+
+  // Increment comment count in Content model
+  await Content.findByIdAndUpdate(contentId, { $inc: { comments: 1 } });
 
   return NextResponse.json({ success: true, comment: newComment }, { status: 201 });
 }
@@ -66,6 +69,10 @@ export async function DELETE(req: Request) {
   }
 
   await Comment.findByIdAndDelete(commentId);
+
+  // Decrement comment count in Content model
+  await Content.findOneAndUpdate({ _id: comment.contentId }, { $inc: { comments: -1 } });
+
   return NextResponse.json({ success: true }, { status: 200 });
 }
 
@@ -91,7 +98,8 @@ export async function PATCH(req: Request) {
   }
 
   comment.text = text;
-  comment.edited = true;
+  // Mark as edited if you want:
+  // comment.edited = true; // If you had an edited field
   await comment.save();
 
   return NextResponse.json({ success: true }, { status: 200 });
