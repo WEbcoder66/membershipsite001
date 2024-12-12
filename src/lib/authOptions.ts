@@ -1,4 +1,5 @@
 // src/lib/authOptions.ts
+
 import { AuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import dbConnect from "@/lib/mongodb";
@@ -13,38 +14,24 @@ export const authOptions: AuthOptions = {
   providers: [
     CredentialsProvider({
       name: "Credentials",
-      credentials: {
-        email: { label: "Email", type: "text" },
-        password: { label: "Password", type: "password" },
-      },
+      credentials: { email: { label: "Email" }, password: { label: "Password" } },
       async authorize(credentials) {
-        // Check that credentials are provided
-        if (!credentials?.email || !credentials?.password) {
-          return null;
-        }
-
-        // Connect to DB
+        if (!credentials?.email || !credentials?.password) return null;
         await dbConnect();
-
-        // Find user by email
         const user = await User.findOne({ email: credentials.email });
-        if (!user) {
-          return null;
-        }
+        if (!user) return null;
 
-        // Compare passwords
-        const isValid = await user.comparePassword(credentials.password);
-        if (!isValid) {
-          return null;
-        }
+        const isValid = await bcrypt.compare(credentials.password, user.hashedPassword);
+        if (!isValid) return null;
 
-        // Return user object for session
+        // Since there's no avatar field in the user schema, set image to null
         return {
           id: user._id.toString(),
-          name: user.username,       // Use the username from DB
+          name: user.username,
           email: user.email,
+          image: null,
           isAdmin: user.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL,
-          membershipTier: user.membershipTier || "basic",
+          membershipTier: user.membershipTier || 'basic',
         };
       },
     }),
@@ -55,6 +42,8 @@ export const authOptions: AuthOptions = {
         token.id = user.id;
         token.isAdmin = user.isAdmin ?? false;
         token.membershipTier = user.membershipTier ?? "basic";
+        token.name = user.name;
+        token.picture = user.image; 
       }
       return token;
     },
@@ -63,7 +52,8 @@ export const authOptions: AuthOptions = {
         session.user.id = token.id as string;
         session.user.isAdmin = token.isAdmin as boolean;
         session.user.membershipTier = token.membershipTier as string;
-        // session.user.name is already set to username from user object above
+        session.user.name = token.name as string;
+        session.user.image = token.picture as string | null;
       }
       return session;
     },

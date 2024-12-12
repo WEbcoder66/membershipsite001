@@ -1,3 +1,4 @@
+// src/components/Feed/Feed.tsx
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -61,6 +62,7 @@ export default function Feed({ setActiveTab }: FeedProps) {
       alert('Please sign in to like posts');
       return;
     }
+
     setLikedPosts((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(postId)) {
@@ -84,18 +86,6 @@ export default function Feed({ setActiveTab }: FeedProps) {
     });
   };
 
-  const handleShare = (postId: string) => {
-    console.log(`Shared post: ${postId}`);
-  };
-
-  const handleSave = (postId: string) => {
-    console.log(`Saved post: ${postId}`);
-  };
-
-  const handleReport = (postId: string) => {
-    console.log(`Reported post: ${postId}`);
-  };
-
   if (isLoading) {
     return (
       <div className="flex justify-center py-8">
@@ -112,28 +102,30 @@ export default function Feed({ setActiveTab }: FeedProps) {
     <div className="max-w-4xl mx-auto px-4">
       <ErrorBoundary fallback={<ErrorFallback />}>
         <div className="space-y-6">
-          {content.map((post) => (
-            <div key={post.id}>
-              <FeedItem
-                post={{
-                  ...post,
-                  likes: (post.likes || 0) + (likedPosts.has(post.id) ? 1 : 0),
-                  comments: post.comments || 0
-                }}
-                onLike={handleLike}
-                onComment={handleComment}
-                onShare={handleShare}
-                onSave={handleSave}
-                onReport={handleReport}
-                setActiveTab={setActiveTab}
-              />
-              {expandedComments.has(post.id) && (
-                <ErrorBoundary fallback={<div className="p-4 bg-red-50 text-red-700">Error loading comments</div>}>
-                  <CommentSection postId={post.id} />
-                </ErrorBoundary>
-              )}
-            </div>
-          ))}
+          {content.map((post) => {
+            const updatedLikes = (post.likes || 0) + (likedPosts.has(post.id) ? 1 : 0);
+            const updatedComments = post.comments ?? 0; // If comments field exists
+
+            return (
+              <div key={post.id}>
+                <FeedItem
+                  post={{
+                    ...post,
+                    likes: updatedLikes,
+                    comments: updatedComments
+                  }}
+                  onLike={handleLike}
+                  onComment={handleComment}
+                  setActiveTab={setActiveTab}
+                />
+                {expandedComments.has(post.id) && (
+                  <ErrorBoundary fallback={<div className="p-4 bg-red-50 text-red-700">Error loading comments</div>}>
+                    <CommentSection contentId={post.id} />
+                  </ErrorBoundary>
+                )}
+              </div>
+            );
+          })}
         </div>
       </ErrorBoundary>
     </div>

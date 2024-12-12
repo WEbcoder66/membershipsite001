@@ -1,19 +1,17 @@
 // src/lib/types.ts
 
-// Basic type definitions
 export type MembershipTier = 'basic' | 'premium' | 'allAccess';
-export type ContentType = 'post' | 'video' | 'photo' | 'audio' | 'poll'; // replaced 'gallery' with 'photo'
+export type ContentType = 'post' | 'video' | 'photo' | 'audio' | 'poll'; 
 export type OrderStatus = 'pending' | 'processing' | 'completed' | 'cancelled';
 export type PaymentStatus = 'pending' | 'completed' | 'failed' | 'refunded';
 export type NotificationType = 'order' | 'content' | 'comment' | 'system';
 export type UserRole = 'member' | 'admin' | 'moderator';
 
-// Content interface
 export interface Content {
   id: string;
   type: ContentType;
   title: string;
-  content?: string;  // Added content field
+  content?: string;
   description?: string;
   createdAt: string;
   updatedAt?: string;
@@ -52,14 +50,13 @@ export interface Content {
     };
   };
   likes?: number;
-  comments?: number;
+  comments?: number; // Ensure comments is optional here
   views?: number;
   tags?: string[];
   category?: string;
   status?: 'draft' | 'published' | 'archived';
 }
 
-// Post interface
 export interface Post {
   id: string;
   slug: string;
@@ -71,7 +68,7 @@ export interface Post {
   tier: MembershipTier;
   isLocked: boolean;
   likes: number;
-  comments: number;
+  comments?: number; // Add this line to ensure Post has comments
   price?: number;
   thumbnailUrl?: string;
   coverImageUrl?: string;
