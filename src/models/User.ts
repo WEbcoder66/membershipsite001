@@ -1,3 +1,4 @@
+// src/models/User.ts
 import mongoose, { Document, Model } from 'mongoose';
 import bcrypt from 'bcrypt';
 
@@ -8,7 +9,7 @@ export interface IUser {
   membershipTier?: 'basic' | 'premium' | 'allAccess';
   passwordResetToken?: string;
   passwordResetExpires?: Date;
-  purchases: string[]; // Add this line
+  purchases: string[];
 }
 
 export interface IUserDocument extends IUser, Document {
@@ -23,7 +24,7 @@ const UserSchema = new mongoose.Schema<IUserDocument>({
   membershipTier: { type: String, enum: ['basic', 'premium', 'allAccess'] },
   passwordResetToken: String,
   passwordResetExpires: Date,
-  purchases: [{ type: String, default: [] }] // Add this line
+  purchases: [{ type: String, default: [] }]
 });
 
 UserSchema.methods.comparePassword = async function (password: string): Promise<boolean> {
