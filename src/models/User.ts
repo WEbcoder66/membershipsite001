@@ -21,12 +21,13 @@ const UserSchema = new mongoose.Schema<IUserDocument>({
   email: { type: String, unique: true, required: true },
   username: { type: String, unique: true, required: true },
   hashedPassword: { type: String, required: true },
-  membershipTier: { type: String, enum: ['basic', 'premium', 'allAccess'] },
+  membershipTier: { type: String, enum: ['basic', 'premium', 'allAccess'], default: 'basic' },
   passwordResetToken: String,
   passwordResetExpires: Date,
   purchases: [{ type: String, default: [] }]
 });
 
+// Compare a given password with the stored hashed password.
 UserSchema.methods.comparePassword = async function (password: string): Promise<boolean> {
   return bcrypt.compare(password, this.hashedPassword);
 };

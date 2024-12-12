@@ -12,13 +12,11 @@ export default function SignUpPage() {
   const [password, setPassword] = useState('');
 
   async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    // TODO: Implement your signup logic here. E.g.:
-    // const res = await fetch('/api/signup', { method: 'POST', body: JSON.stringify({ name, email, password }) });
-    // Check response and handle accordingly.
-    alert('Account created successfully! Redirecting to sign in...');
-    window.location.href = '/auth/signin';
-  }
+  e.preventDefault();
+  // TODO: Implement your signup logic here.
+  alert('Account created successfully! Redirecting to sign in...');
+  window.location.href = '/auth/signin';
+}
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-200 p-4">
