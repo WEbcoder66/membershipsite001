@@ -4,19 +4,38 @@ import { useState } from "react";
 import Image from 'next/image';
 import Link from 'next/link';
 
-// In a real app, you'd have a signUp function that sends a request to an API
-// endpoint to create a user. Replace the `handleSubmit` logic with your own.
 export default function SignUpPage() {
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
 
   async function handleSubmit(e: React.FormEvent) {
-  e.preventDefault();
-  // TODO: Implement your signup logic here.
-  alert('Account created successfully! Redirecting to sign in...');
-  window.location.href = '/auth/signin';
-}
+    e.preventDefault();
+    setErrorMsg('');
+
+    try {
+      const res = await fetch('/api/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, password }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        // Display error if something went wrong
+        setErrorMsg(data.error || 'An error occurred during signup.');
+      } else {
+        // If signup was successful
+        alert('Account created successfully! Redirecting to sign in...');
+        window.location.href = '/auth/signin';
+      }
+    } catch (err: any) {
+      console.error('Signup error on client:', err);
+      setErrorMsg('An unexpected error occurred. Please try again.');
+    }
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-200 p-4">
@@ -33,6 +52,12 @@ export default function SignUpPage() {
           <h1 className="text-2xl font-bold text-gray-800">Sign Up</h1>
           <p className="text-sm text-gray-600 mt-2">Create your account</p>
         </div>
+
+        {errorMsg && (
+          <div className="mb-4 p-3 text-red-700 bg-red-50 rounded-lg border border-red-200 text-sm">
+            {errorMsg}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
