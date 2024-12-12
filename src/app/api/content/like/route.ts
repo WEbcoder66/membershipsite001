@@ -1,4 +1,3 @@
-// src/app/api/content/like/route.ts
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/authOptions';
@@ -17,6 +16,7 @@ export async function POST(req: Request) {
   }
 
   await dbConnect();
+
   const userId = session.user.id;
   const content = await Content.findById(contentId);
   if (!content) {
@@ -27,14 +27,14 @@ export async function POST(req: Request) {
   if (alreadyLiked) {
     // Unlike
     content.likedBy = content.likedBy.filter((id: string) => id !== userId);
-    content.likes = content.likes - 1;
+    content.likes = (content.likes || 0) - 1;
   } else {
     // Like
     content.likedBy.push(userId);
-    content.likes = content.likes + 1;
+    content.likes = (content.likes || 0) + 1;
   }
 
   await content.save();
 
-  return NextResponse.json({ success: true, likes: content.likes });
+  return NextResponse.json({ success: true, likes: content.likes }, { status: 200 });
 }
