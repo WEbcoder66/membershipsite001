@@ -5,6 +5,7 @@ import dbConnect from "@/lib/mongodb";
 import User from "@/models/User";
 
 export const authOptions: AuthOptions = {
+  secret: process.env.NEXTAUTH_SECRET, // Add this line
   providers: [
     CredentialsProvider({
       name: "Credentials",
@@ -26,8 +27,8 @@ export const authOptions: AuthOptions = {
         }
 
         return { id: user._id.toString(), name: user.username, email: user.email };
-      }
-    })
+      },
+    }),
   ],
   session: {
     strategy: 'jwt'
@@ -35,8 +36,7 @@ export const authOptions: AuthOptions = {
   callbacks: {
     async session({ session, token }) {
       if (token && session.user) {
-        // Ensure session.user.id is always a string
-        session.user.id = token.sub ?? ''; 
+        session.user.id = token.sub ?? '';
       }
       return session;
     },

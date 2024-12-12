@@ -1,27 +1,23 @@
 'use client';
 
-import { signIn } from "next-auth/react";
 import { useState } from "react";
 import Image from 'next/image';
 import Link from 'next/link';
 
-export default function SignInPage() {
+// In a real app, you'd have a signUp function that sends a request to an API
+// endpoint to create a user. Replace the `handleSubmit` logic with your own.
+export default function SignUpPage() {
   const [email, setEmail] = useState('');
+  const [name, setName] = useState('');
   const [password, setPassword] = useState('');
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const res = await signIn('credentials', {
-      redirect: false,
-      email,
-      password
-    });
-    if (res && !res.error) {
-      // Signed in successfully
-      window.location.href = '/'; // redirect to your chosen homepage
-    } else {
-      alert(res?.error ?? 'Failed to sign in');
-    }
+    // TODO: Implement your signup logic here. E.g.:
+    // const res = await fetch('/api/signup', { method: 'POST', body: JSON.stringify({ name, email, password }) });
+    // Check response and handle accordingly.
+    alert('Account created successfully! Redirecting to sign in...');
+    window.location.href = '/auth/signin';
   }
 
   return (
@@ -36,11 +32,24 @@ export default function SignInPage() {
               className="object-contain"
             />
           </div>
-          <h1 className="text-2xl font-bold text-gray-800">Sign In</h1>
-          <p className="text-sm text-gray-600 mt-2">Access your account</p>
+          <h1 className="text-2xl font-bold text-gray-800">Sign Up</h1>
+          <p className="text-sm text-gray-600 mt-2">Create your account</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
+          <div>
+            <label className="block mb-1 text-sm font-medium text-gray-700" htmlFor="name">Name</label>
+            <input 
+              id="name"
+              value={name}
+              onChange={e => setName(e.target.value)} 
+              type="text" 
+              placeholder="Your Name" 
+              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400 focus:outline-none"
+              required 
+            />
+          </div>
+
           <div>
             <label className="block mb-1 text-sm font-medium text-gray-700" htmlFor="email">Email</label>
             <input 
@@ -67,23 +76,17 @@ export default function SignInPage() {
             />
           </div>
 
-          <div className="text-right">
-            <Link href="/auth/forgot-password" className="text-sm text-gray-600 hover:text-gray-800 transition-colors">
-              Forgot Password?
-            </Link>
-          </div>
-
           <button 
             type="submit" 
             className="w-full py-2 bg-yellow-400 text-black font-semibold rounded-lg hover:bg-yellow-500 transition-colors"
           >
-            Sign In
+            Sign Up
           </button>
         </form>
 
         <div className="mt-6 text-center text-sm text-gray-600">
-          Don’t have an account?{' '}
-          <Link href="/auth/signup" className="text-yellow-600 hover:text-yellow-700 font-medium">Sign Up</Link>
+          Already have an account?{' '}
+          <Link href="/auth/signin" className="text-yellow-600 hover:text-yellow-700 font-medium">Sign In</Link>
         </div>
 
         <div className="mt-6 text-center">

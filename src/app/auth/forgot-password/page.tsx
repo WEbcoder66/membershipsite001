@@ -1,27 +1,17 @@
 'use client';
 
-import { signIn } from "next-auth/react";
 import { useState } from "react";
 import Image from 'next/image';
 import Link from 'next/link';
 
-export default function SignInPage() {
+// In a real app, you'd have logic to handle password reset links, emails, etc.
+export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const res = await signIn('credentials', {
-      redirect: false,
-      email,
-      password
-    });
-    if (res && !res.error) {
-      // Signed in successfully
-      window.location.href = '/'; // redirect to your chosen homepage
-    } else {
-      alert(res?.error ?? 'Failed to sign in');
-    }
+    // TODO: Implement your forgot password logic, e.g. send reset link via email.
+    alert('If an account with that email exists, a reset link has been sent.');
   }
 
   return (
@@ -36,8 +26,8 @@ export default function SignInPage() {
               className="object-contain"
             />
           </div>
-          <h1 className="text-2xl font-bold text-gray-800">Sign In</h1>
-          <p className="text-sm text-gray-600 mt-2">Access your account</p>
+          <h1 className="text-2xl font-bold text-gray-800">Forgot Password</h1>
+          <p className="text-sm text-gray-600 mt-2">Enter your email to reset your password</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
@@ -54,36 +44,17 @@ export default function SignInPage() {
             />
           </div>
 
-          <div>
-            <label className="block mb-1 text-sm font-medium text-gray-700" htmlFor="password">Password</label>
-            <input 
-              id="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)} 
-              type="password" 
-              placeholder="********" 
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400 focus:outline-none"
-              required 
-            />
-          </div>
-
-          <div className="text-right">
-            <Link href="/auth/forgot-password" className="text-sm text-gray-600 hover:text-gray-800 transition-colors">
-              Forgot Password?
-            </Link>
-          </div>
-
           <button 
             type="submit" 
             className="w-full py-2 bg-yellow-400 text-black font-semibold rounded-lg hover:bg-yellow-500 transition-colors"
           >
-            Sign In
+            Send Reset Link
           </button>
         </form>
 
         <div className="mt-6 text-center text-sm text-gray-600">
-          Don’t have an account?{' '}
-          <Link href="/auth/signup" className="text-yellow-600 hover:text-yellow-700 font-medium">Sign Up</Link>
+          Remembered your password?{' '}
+          <Link href="/auth/signin" className="text-yellow-600 hover:text-yellow-700 font-medium">Sign In</Link>
         </div>
 
         <div className="mt-6 text-center">
