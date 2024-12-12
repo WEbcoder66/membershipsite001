@@ -1,3 +1,4 @@
+// src/components/MembershipTiers.tsx
 import React, { useState } from 'react';
 import { useSession } from 'next-auth/react';
 
@@ -56,9 +57,17 @@ export default function MembershipTiers({ onSubscribe }: MembershipTiersProps) {
 
     try {
       setProcessingTier(tierId);
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      // Make API call to update tier if needed
+      const res = await fetch('/api/user/updateTier', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tier: tierId })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to update membership tier');
+      }
       onSubscribe?.();
+      // Reload the page to update session/tier visually
       window.location.reload();
     } catch (error) {
       console.error('Subscription error:', error);
@@ -70,16 +79,12 @@ export default function MembershipTiers({ onSubscribe }: MembershipTiersProps) {
 
   return (
     <div className="max-w-5xl mx-auto px-4">
-      {/* Just show Monthly label */}
       <div className="text-center mb-12">
         <h2 className="text-xl font-semibold text-black">Monthly</h2>
       </div>
-
-      {/* Membership Cards */}
       <div className="grid md:grid-cols-3 gap-8 mb-16">
         {Object.entries(MEMBERSHIP_TIERS).map(([tierId, tier]) => {
           const price = tier.price;
-
           return (
             <div
               key={tierId}
