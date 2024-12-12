@@ -8,19 +8,23 @@ import Link from 'next/link';
 export default function SignInPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    setErrorMsg('');
+
     const res = await signIn('credentials', {
       redirect: false,
       email,
       password
     });
+
     if (res && !res.error) {
       // Signed in successfully
-      window.location.href = '/'; // redirect to your chosen homepage
+      window.location.href = '/';
     } else {
-      alert(res?.error ?? 'Failed to sign in');
+      setErrorMsg(res?.error ?? 'Failed to sign in');
     }
   }
 
@@ -40,30 +44,36 @@ export default function SignInPage() {
           <p className="text-sm text-gray-600 mt-2">Access your account</p>
         </div>
 
+        {errorMsg && (
+          <div className="mb-4 p-3 text-red-700 bg-red-50 rounded-lg border border-red-200 text-sm">
+            {errorMsg}
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
             <label className="block mb-1 text-sm font-medium text-gray-700" htmlFor="email">Email</label>
-            <input 
-  id="email"
-  value={email}
-  onChange={e => setEmail(e.target.value)} 
-  type="email" 
-  placeholder="you@example.com" 
-  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400 focus:outline-none text-gray-800"
-  required 
-/>
+            <input
+              id="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              type="email"
+              placeholder="you@example.com"
+              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400 focus:outline-none text-gray-800"
+              required
+            />
           </div>
 
           <div>
             <label className="block mb-1 text-sm font-medium text-gray-700" htmlFor="password">Password</label>
-            <input 
+            <input
               id="password"
               value={password}
-              onChange={e => setPassword(e.target.value)} 
-              type="password" 
-              placeholder="********" 
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400 focus:outline-none"
-              required 
+              onChange={e => setPassword(e.target.value)}
+              type="password"
+              placeholder="********"
+              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400 focus:outline-none text-gray-800"
+              required
             />
           </div>
 
@@ -73,8 +83,8 @@ export default function SignInPage() {
             </Link>
           </div>
 
-          <button 
-            type="submit" 
+          <button
+            type="submit"
             className="w-full py-2 bg-yellow-400 text-black font-semibold rounded-lg hover:bg-yellow-500 transition-colors"
           >
             Sign In

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Image from 'next/image';
 import Link from 'next/link';
+import { signIn } from "next-auth/react";
 
 export default function SignUpPage() {
   const [email, setEmail] = useState('');
@@ -24,12 +25,22 @@ export default function SignUpPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        // Display error if something went wrong
         setErrorMsg(data.error || 'An error occurred during signup.');
       } else {
-        // If signup was successful
-        alert('Account created successfully! Redirecting to sign in...');
-        window.location.href = '/auth/signin';
+        // Automatically sign in the user after successful signup
+        const signInRes = await signIn('credentials', {
+          redirect: false,
+          email,
+          password
+        });
+
+        if (signInRes && !signInRes.error) {
+          window.location.href = '/'; // Redirect to homepage signed in
+        } else {
+          // If sign-in after signup fails, redirect to sign in page
+          alert('Account created but sign-in failed, please sign in manually.');
+          window.location.href = '/auth/signin';
+        }
       }
     } catch (err: any) {
       console.error('Signup error on client:', err);
@@ -62,45 +73,45 @@ export default function SignUpPage() {
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
             <label className="block mb-1 text-sm font-medium text-gray-700" htmlFor="name">Name</label>
-            <input 
+            <input
               id="name"
               value={name}
-              onChange={e => setName(e.target.value)} 
-              type="text" 
-              placeholder="Your Name" 
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400 focus:outline-none"
-              required 
+              onChange={e => setName(e.target.value)}
+              type="text"
+              placeholder="Your Name"
+              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400 focus:outline-none text-gray-800"
+              required
             />
           </div>
 
           <div>
             <label className="block mb-1 text-sm font-medium text-gray-700" htmlFor="email">Email</label>
-            <input 
+            <input
               id="email"
               value={email}
-              onChange={e => setEmail(e.target.value)} 
-              type="email" 
-              placeholder="you@example.com" 
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400 focus:outline-none"
-              required 
+              onChange={e => setEmail(e.target.value)}
+              type="email"
+              placeholder="you@example.com"
+              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400 focus:outline-none text-gray-800"
+              required
             />
           </div>
 
           <div>
             <label className="block mb-1 text-sm font-medium text-gray-700" htmlFor="password">Password</label>
-            <input 
+            <input
               id="password"
               value={password}
-              onChange={e => setPassword(e.target.value)} 
-              type="password" 
-              placeholder="********" 
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400 focus:outline-none"
-              required 
+              onChange={e => setPassword(e.target.value)}
+              type="password"
+              placeholder="********"
+              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400 focus:outline-none text-gray-800"
+              required
             />
           </div>
 
-          <button 
-            type="submit" 
+          <button
+            type="submit"
             className="w-full py-2 bg-yellow-400 text-black font-semibold rounded-lg hover:bg-yellow-500 transition-colors"
           >
             Sign Up

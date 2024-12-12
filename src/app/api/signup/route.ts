@@ -1,13 +1,7 @@
-// src/app/api/signup/route.ts
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import User from '@/models/User';
 import bcrypt from 'bcrypt';
-
-// Try removing or adding runtime exports if needed
-// export const runtime = 'nodejs';
-// export const dynamic = 'force-dynamic';
-// export const fetchCache = 'force-no-store';
 
 export async function POST(request: Request) {
   console.log('Signup route called.');
