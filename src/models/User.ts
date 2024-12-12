@@ -18,8 +18,8 @@ export interface IUserDocument extends IUser, Document {
 }
 
 const UserSchema = new mongoose.Schema<IUserDocument>({
-  email: { type: String, unique: true, required: true },
-  username: { type: String, unique: true, required: true },
+  email: { type: String, required: true, unique: true },
+  username: { type: String, required: true }, // temporarily remove unique to test
   hashedPassword: { type: String, required: true },
   membershipTier: { type: String, enum: ['basic', 'premium', 'allAccess'], default: 'basic' },
   passwordResetToken: String,
@@ -27,7 +27,6 @@ const UserSchema = new mongoose.Schema<IUserDocument>({
   purchases: [{ type: String, default: [] }]
 });
 
-// Compare a given password with the stored hashed password.
 UserSchema.methods.comparePassword = async function (password: string): Promise<boolean> {
   return bcrypt.compare(password, this.hashedPassword);
 };

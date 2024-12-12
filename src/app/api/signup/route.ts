@@ -4,13 +4,9 @@ import dbConnect from '@/lib/mongodb';
 import User from '@/models/User';
 import bcrypt from 'bcrypt';
 
-/**
- * Handles user signup:
- * - Validates input
- * - Checks if user already exists
- * - Hashes password
- * - Creates new user in MongoDB
- */
+export const runtime = 'nodejs';          // Add this line
+export const fetchCache = 'force-no-store';// Add this line
+
 export async function POST(request: Request) {
   try {
     await dbConnect();
@@ -21,13 +17,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'All fields are required.' }, { status: 400 });
     }
 
-    // Check if user already exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       return NextResponse.json({ error: 'User with that email already exists.' }, { status: 400 });
     }
 
-    // Hash the password
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const newUser = new User({

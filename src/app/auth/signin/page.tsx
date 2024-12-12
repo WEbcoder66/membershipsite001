@@ -44,14 +44,14 @@ export default function SignInPage() {
           <div>
             <label className="block mb-1 text-sm font-medium text-gray-700" htmlFor="email">Email</label>
             <input 
-              id="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)} 
-              type="email" 
-              placeholder="you@example.com" 
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400 focus:outline-none"
-              required 
-            />
+  id="email"
+  value={email}
+  onChange={e => setEmail(e.target.value)} 
+  type="email" 
+  placeholder="you@example.com" 
+  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400 focus:outline-none text-gray-800"
+  required 
+/>
           </div>
 
           <div>
