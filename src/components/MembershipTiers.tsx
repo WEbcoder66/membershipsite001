@@ -5,7 +5,6 @@ const MEMBERSHIP_TIERS = {
   basic: {
     name: 'Basic',
     price: 4.99,
-    annualPrice: 49.99,
     features: [
       "Access to weekly content updates",
       "Basic community features",
@@ -17,7 +16,6 @@ const MEMBERSHIP_TIERS = {
   premium: {
     name: 'Premium',
     price: 9.99,
-    annualPrice: 99.99,
     features: [
       "All Basic features",
       "Exclusive premium content",
@@ -30,7 +28,6 @@ const MEMBERSHIP_TIERS = {
   allAccess: {
     name: 'All-Access',
     price: 19.99,
-    annualPrice: 199.99,
     features: [
       "All Premium features",
       "1-on-1 monthly mentoring",
@@ -48,31 +45,20 @@ interface MembershipTiersProps {
 
 export default function MembershipTiers({ onSubscribe }: MembershipTiersProps) {
   const { data: session } = useSession();
-  const [isAnnual, setIsAnnual] = useState(false);
+  const user = session?.user;
   const [processingTier, setProcessingTier] = useState<string | null>(null);
 
   const handleSubscribe = async (tierId: string) => {
-    if (!session?.user) {
+    if (!user) {
       window.location.href = '/auth/signin';
       return;
     }
 
     try {
       setProcessingTier(tierId);
-      // Make a request to your server to update the user's membership tier
-      // Example (adjust this endpoint and logic as needed):
-      const res = await fetch('/api/user/updateTier', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tier: tierId })
-      });
-
-      if (!res.ok) {
-        throw new Error('Failed to update membership tier.');
-      }
-
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Make API call to update tier if needed
       onSubscribe?.();
-      // Refresh the page or session to reflect the new tier
       window.location.reload();
     } catch (error) {
       console.error('Subscription error:', error);
@@ -84,34 +70,15 @@ export default function MembershipTiers({ onSubscribe }: MembershipTiersProps) {
 
   return (
     <div className="max-w-5xl mx-auto px-4">
-      {/* Billing Toggle */}
+      {/* Just show Monthly label */}
       <div className="text-center mb-12">
-        <div className="flex items-center justify-center gap-4">
-          <span className={`font-semibold ${!isAnnual ? 'text-black' : 'text-gray-500'}`}>
-            Monthly
-          </span>
-          <button
-            onClick={() => setIsAnnual(!isAnnual)}
-            className="relative w-14 h-8 bg-gray-200 rounded-full transition-colors"
-          >
-            <div
-              className={`absolute top-1 left-1 w-6 h-6 bg-yellow-400 rounded-full transition-transform ${
-                isAnnual ? 'translate-x-6' : ''
-              }`}
-            />
-          </button>
-          <span className={`font-semibold ${isAnnual ? 'text-black' : 'text-gray-500'}`}>
-            Annual <span className="text-green-600">(Save 20%)</span>
-          </span>
-        </div>
+        <h2 className="text-xl font-semibold text-black">Monthly</h2>
       </div>
 
       {/* Membership Cards */}
       <div className="grid md:grid-cols-3 gap-8 mb-16">
         {Object.entries(MEMBERSHIP_TIERS).map(([tierId, tier]) => {
-          const price = isAnnual ? tier.annualPrice / 12 : tier.price;
-          const yearlyPrice = isAnnual ? tier.annualPrice : tier.price * 12;
-          const currentTier = session?.user?.membershipTier;
+          const price = tier.price;
 
           return (
             <div
@@ -130,11 +97,6 @@ export default function MembershipTiers({ onSubscribe }: MembershipTiersProps) {
                   <span className="text-4xl font-bold text-black">${price.toFixed(2)}</span>
                   <span className="text-gray-600">/month</span>
                 </div>
-                {isAnnual && (
-                  <p className="text-sm text-gray-600 mt-1">
-                    ${yearlyPrice.toFixed(2)} billed yearly
-                  </p>
-                )}
               </div>
 
               <ul className="space-y-4 mb-8 flex-grow">
@@ -148,16 +110,16 @@ export default function MembershipTiers({ onSubscribe }: MembershipTiersProps) {
 
               <button
                 onClick={() => handleSubscribe(tierId)}
-                disabled={currentTier === tierId || !!processingTier}
+                disabled={user?.membershipTier === tierId || !!processingTier}
                 className={`w-full py-3 px-4 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors ${
-                  currentTier === tierId
+                  user?.membershipTier === tierId
                     ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
                     : processingTier === tierId
                     ? 'bg-yellow-300 text-black cursor-wait'
                     : `${tier.color} text-black hover:bg-opacity-90`
                 }`}
               >
-                {currentTier === tierId
+                {user?.membershipTier === tierId
                   ? 'Current Plan'
                   : processingTier === tierId
                   ? 'Processing...'
