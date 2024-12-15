@@ -31,27 +31,27 @@ function FeedItemBase({ post, onLike, onComment, setActiveTab }: FeedItemProps) 
 
   const renderLockedOverlay = () => {
     return (
-      <div className="absolute inset-0 flex items-center justify-center z-50 bg-black/60">
-        <div className="w-[300px] flex flex-col items-center text-center p-6">
-          <div className="w-16 h-16 bg-yellow-400 rounded-full flex items-center justify-center mb-4">
-            <Lock className="w-8 h-8 text-navy-900" />
+      <div className="absolute inset-0 flex items-center justify-center z-50 bg-black/90">
+        <div className="text-center p-6">
+          <div className="w-16 h-16 mx-auto mb-4">
+            <div className="w-full h-full flex items-center justify-center">
+              <Lock className="w-10 h-10 text-white" />
+            </div>
           </div>
           
-          <div className="bg-[#0a0b1f] p-6 rounded-lg w-full">
-            <h3 className="text-xl font-bold text-white mb-2">
-              Premium Content
-            </h3>
-            <p className="text-gray-300 mb-4">
-              This content is available for premium members
-            </p>
-            
-            <button
-              onClick={() => setActiveTab('membership')}
-              className="w-full py-2.5 px-4 bg-yellow-400 hover:bg-yellow-500 text-black font-semibold rounded-md transition-colors"
-            >
-              Upgrade Now
-            </button>
-          </div>
+          <h3 className="text-2xl font-bold text-white mb-2">
+            Premium Content
+          </h3>
+          <p className="text-gray-300 mb-6">
+            This content is available for premium members
+          </p>
+          
+          <button
+            onClick={() => setActiveTab('membership')}
+            className="bg-yellow-400 px-6 py-2.5 rounded-md font-semibold text-black hover:bg-yellow-500 transition-colors"
+          >
+            Upgrade to premium
+          </button>
         </div>
       </div>
     );
@@ -64,7 +64,7 @@ function FeedItemBase({ post, onLike, onComment, setActiveTab }: FeedItemProps) 
           return (
             <div className="relative w-full aspect-video">
               {contentLocked && renderLockedOverlay()}
-              <div className={`w-full h-full ${contentLocked ? "filter blur-sm" : ""}`}>
+              <div className={contentLocked ? "filter blur-sm" : ""}>
                 <VideoPlayer
                   videoId={post.mediaContent.video.videoId}
                   thumbnail={post.mediaContent.video.thumbnail}
@@ -141,7 +141,14 @@ function FeedItemBase({ post, onLike, onComment, setActiveTab }: FeedItemProps) 
   return (
     <article className="bg-white rounded-lg shadow-lg overflow-hidden relative">
       <div className="p-4 border-b">
-        <h2 className="font-bold text-lg text-black">{post.title}</h2>
+        <div className="flex justify-between items-center">
+          <h2 className="font-bold text-lg text-black">{post.title}</h2>
+          {post.tier !== 'basic' && (
+            <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm font-medium">
+              {post.tier}
+            </span>
+          )}
+        </div>
       </div>
       {renderContent()}
       <div className="px-4 py-3 border-t bg-gray-50 flex items-center justify-between">
