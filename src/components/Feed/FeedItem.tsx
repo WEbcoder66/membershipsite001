@@ -9,7 +9,6 @@ import AudioPlayer from '@/components/Feed/AudioPlayer';
 import PollComponent from '@/components/Feed/PollComponent';
 import { useSession } from 'next-auth/react';
 
-// Determine if user has access based on tier
 function hasAccess(userTier: string, contentTier: string): boolean {
   const tiers = ['basic', 'premium', 'allAccess'];
   const userIndex = tiers.indexOf(userTier);
@@ -26,8 +25,35 @@ interface FeedItemProps {
 
 function FeedItemBase({ post, onLike, onComment, setActiveTab }: FeedItemProps) {
   const { data: session } = useSession();
-  const userTier = session?.user?.membershipTier ?? 'basic';
-  const contentLocked = !hasAccess(userTier, post.tier);
+  const userTier = session?.user?.membershipTier;
+  const contentLocked = !userTier || !hasAccess(userTier, post.tier);
+
+  const renderLockedOverlay = () => {
+    return (
+      <div className="absolute inset-0 flex items-center justify-center z-50 bg-black/60">
+        <div className="
+          relative
+          w-[250px]
+          aspect-square
+          rounded-full
+          flex flex-col items-center justify-center text-center text-white p-6
+          bg-[radial-gradient(circle,_#001354_30%,_#000035_100%)]
+        ">
+          <Lock className="w-8 h-8 text-white mb-4" />
+          <h3 className="text-xl font-bold mb-2">Premium Content</h3>
+          <p className="text-sm text-gray-200 mb-4">
+            This content is available for premium members
+          </p>
+          <button
+            onClick={() => setActiveTab('membership')}
+            className="bg-yellow-400 hover:bg-yellow-500 text-black font-semibold py-2 px-4 rounded"
+          >
+            Upgrade to premium
+          </button>
+        </div>
+      </div>
+    );
+  };
 
   const renderContent = () => {
     switch (post.type) {
@@ -35,24 +61,7 @@ function FeedItemBase({ post, onLike, onComment, setActiveTab }: FeedItemProps) 
         if (post.mediaContent?.video) {
           return (
             <div className="relative">
-              {contentLocked && (
-                <div className="absolute inset-0 bg-black/50 z-10 flex items-center justify-center">
-                  <div className="text-center p-6 text-white">
-                    <div className="w-16 h-16 rounded-full bg-black/30 flex items-center justify-center mx-auto mb-4">
-                      <Lock className="w-8 h-8 text-white" />
-                    </div>
-                    <h3 className="text-xl font-bold mb-4">
-                      Requires {post.tier} Access
-                    </h3>
-                    <button
-                      onClick={() => setActiveTab('membership')}
-                      className="bg-yellow-400 px-6 py-2 rounded-md font-semibold text-black hover:bg-yellow-500"
-                    >
-                      Upgrade Membership
-                    </button>
-                  </div>
-                </div>
-              )}
+              {contentLocked && renderLockedOverlay()}
               <VideoPlayer
                 videoId={post.mediaContent.video.videoId}
                 thumbnail={post.mediaContent.video.thumbnail}
@@ -70,24 +79,7 @@ function FeedItemBase({ post, onLike, onComment, setActiveTab }: FeedItemProps) 
           const images = post.mediaContent.photo.images;
           return (
             <div className="relative">
-              {contentLocked && (
-                <div className="absolute inset-0 bg-black/50 z-10 flex items-center justify-center">
-                  <div className="text-center p-6 text-white">
-                    <div className="w-16 h-16 rounded-full bg-black/30 flex items-center justify-center mx-auto mb-4">
-                      <Lock className="w-8 h-8 text-white" />
-                    </div>
-                    <h3 className="text-xl font-bold mb-4">
-                      Requires {post.tier} Access
-                    </h3>
-                    <button
-                      onClick={() => setActiveTab('membership')}
-                      className="bg-yellow-400 px-6 py-2 rounded-md font-semibold text-black hover:bg-yellow-500"
-                    >
-                      Upgrade Membership
-                    </button>
-                  </div>
-                </div>
-              )}
+              {contentLocked && renderLockedOverlay()}
               {!contentLocked && <PhotoGallery images={images} />}
             </div>
           );
@@ -97,25 +89,8 @@ function FeedItemBase({ post, onLike, onComment, setActiveTab }: FeedItemProps) 
       case 'audio':
         if (post.mediaContent?.audio) {
           return (
-            <div className="p-4 relative">
-              {contentLocked && (
-                <div className="absolute inset-0 bg-black/50 z-10 flex items-center justify-center">
-                  <div className="text-center p-6 text-white">
-                    <div className="w-16 h-16 rounded-full bg-black/30 flex items-center justify-center mx-auto mb-4">
-                      <Lock className="w-8 h-8 text-white" />
-                    </div>
-                    <h3 className="text-xl font-bold mb-4">
-                      Requires {post.tier} Access
-                    </h3>
-                    <button
-                      onClick={() => setActiveTab('membership')}
-                      className="bg-yellow-400 px-6 py-2 rounded-md font-semibold text-black hover:bg-yellow-500"
-                    >
-                      Upgrade Membership
-                    </button>
-                  </div>
-                </div>
-              )}
+            <div className="relative p-4">
+              {contentLocked && renderLockedOverlay()}
               {!contentLocked && (
                 <AudioPlayer
                   url={post.mediaContent.audio.url}
@@ -130,25 +105,8 @@ function FeedItemBase({ post, onLike, onComment, setActiveTab }: FeedItemProps) 
       case 'poll':
         if (post.mediaContent?.poll) {
           return (
-            <div className="p-4 relative">
-              {contentLocked && (
-                <div className="absolute inset-0 bg-black/50 z-10 flex items-center justify-center">
-                  <div className="text-center p-6 text-white">
-                    <div className="w-16 h-16 rounded-full bg-black/30 flex items-center justify-center mx-auto mb-4">
-                      <Lock className="w-8 h-8 text-white" />
-                    </div>
-                    <h3 className="text-xl font-bold mb-4">
-                      Requires {post.tier} Access
-                    </h3>
-                    <button
-                      onClick={() => setActiveTab('membership')}
-                      className="bg-yellow-400 px-6 py-2 rounded-md font-semibold text-black hover:bg-yellow-500"
-                    >
-                      Upgrade Membership
-                    </button>
-                  </div>
-                </div>
-              )}
+            <div className="relative p-4">
+              {contentLocked && renderLockedOverlay()}
               {!contentLocked && (
                 <PollComponent
                   options={post.mediaContent.poll.options || {}}
@@ -165,39 +123,24 @@ function FeedItemBase({ post, onLike, onComment, setActiveTab }: FeedItemProps) 
       case 'post':
       default:
         return (
-          <div className="p-4 relative">
-            {contentLocked && (
-              <div className="absolute inset-0 bg-black/50 z-10 flex items-center justify-center">
-                <div className="text-center p-6 text-white">
-                  <div className="w-16 h-16 rounded-full bg-black/30 flex items-center justify-center mx-auto mb-4">
-                    <Lock className="w-8 h-8 text-white" />
-                  </div>
-                  <h3 className="text-xl font-bold mb-4">
-                    Requires {post.tier} Access
-                  </h3>
-                  <button
-                    onClick={() => setActiveTab('membership')}
-                    className="bg-yellow-400 px-6 py-2 rounded-md font-semibold text-black hover:bg-yellow-500"
-                  >
-                    Upgrade Membership
-                  </button>
-                </div>
-              </div>
+          <div className="relative p-4">
+            {post.isLocked && contentLocked && renderLockedOverlay()}
+            {!post.isLocked || !contentLocked ? (
+              <p className="text-gray-800">{post.description}</p>
+            ) : (
+              <p className="text-gray-500 italic">Content locked. Upgrade to view.</p>
             )}
-            {!contentLocked && <p className="text-gray-800">{post.description}</p>}
           </div>
         );
     }
   };
 
   return (
-    <article className="bg-white rounded-lg shadow-lg overflow-hidden">
+    <article className="bg-white rounded-lg shadow-lg overflow-hidden relative">
       <div className="p-4 border-b">
         <h2 className="font-bold text-lg text-black">{post.title}</h2>
       </div>
-
       {renderContent()}
-
       <div className="px-4 py-3 border-t bg-gray-50 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <button
