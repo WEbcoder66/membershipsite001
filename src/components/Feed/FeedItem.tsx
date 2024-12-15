@@ -28,7 +28,7 @@ function FeedItemBase({ post, onLike, onComment, setActiveTab }: FeedItemProps) 
   const { data: session } = useSession();
   const userTier = session?.user?.membershipTier ?? 'basic';
 
-  // Incorporate isLocked and access check
+  // If the content is locked and the user does not have access, it's locked
   const contentLocked = post.isLocked && !hasAccess(userTier, post.tier);
 
   const renderContent = () => {
@@ -55,13 +55,15 @@ function FeedItemBase({ post, onLike, onComment, setActiveTab }: FeedItemProps) 
                   </div>
                 </div>
               )}
-              <VideoPlayer
-                videoId={post.mediaContent.video.videoId}
-                thumbnail={post.mediaContent.video.thumbnail}
-                requiredTier={post.tier}
-                setActiveTab={setActiveTab}
-                locked={contentLocked}
-              />
+              {/* Render video player only if not locked */}
+              {!contentLocked && (
+                <VideoPlayer
+                  videoId={post.mediaContent.video.videoId}
+                  thumbnail={post.mediaContent.video.thumbnail}
+                  requiredTier={post.tier}
+                  locked={contentLocked}
+                />
+              )}
             </div>
           );
         }

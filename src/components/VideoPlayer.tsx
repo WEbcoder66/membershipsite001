@@ -1,76 +1,54 @@
 'use client';
 
-import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertCircle, Maximize2, X } from 'lucide-react';
-import dynamic from 'next/dynamic';
-import clsx from 'clsx';
-
-const PlyrPlayer = dynamic(() => import('./PlyrPlayer'), { ssr: false });
+import React, { useRef, useEffect } from 'react';
+import Plyr from 'plyr';
 
 interface VideoPlayerProps {
   videoId: string;
   thumbnail?: string;
   requiredTier?: string;
-  setActiveTab?: (tab: string) => void;
   locked: boolean;
 }
 
 export default function VideoPlayer({ videoId, thumbnail, locked }: VideoPlayerProps) {
-  const [error, setError] = useState<string | null>(null);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
-  const handleError = useCallback(() => {
-    setError('Failed to load video');
+  useEffect(() => {
+    if (!videoRef.current) return;
+
+    // Initialize Plyr with full-screen control included
+    const player = new Plyr(videoRef.current, {
+      controls: [
+        'play', 
+        'progress', 
+        'current-time', 
+        'mute', 
+        'volume', 
+        'fullscreen'
+      ],
+      fullscreen: { enabled: true, fallback: true, iosNative: false },
+    });
+
+    // Clean up on unmount
+    return () => {
+      player.destroy();
+    };
   }, []);
 
-  const toggleFullscreen = () => {
-    setIsFullscreen(!isFullscreen);
-  };
-
-  // Determine if video is vertical by checking thumbnail ratio (if available)
-  // If no way to determine ratio, just apply a max-height style.
-  const isVertical = true; // In a real scenario, you'd check actual dimensions.
-  
+  // Use a responsive container with a fixed aspect ratio and object-contain
   return (
-    <div 
-      ref={containerRef} 
-      className={clsx("relative w-full mx-auto my-4", {
-        "fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4": isFullscreen
-      })}
-      style={{ maxHeight: isFullscreen ? 'none' : (isVertical ? '80vh' : 'auto') }}
-    >
-      {error && (
-        <div className="absolute top-4 left-4 right-4">
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4 text-red-600" />
-            <AlertDescription className="text-red-700">{error}</AlertDescription>
-          </Alert>
-        </div>
-      )}
-
-      {!locked && (
-        <div 
-          className="relative w-full max-w-full"
-          style={{ maxHeight: isFullscreen ? '90vh' : (isVertical ? '80vh' : 'auto') }}
+    <div className="w-full relative">
+      <div className="relative overflow-hidden" style={{ paddingTop: '56.25%' }}>
+        <video
+          ref={videoRef}
+          className="absolute top-0 left-0 w-full h-full object-contain"
+          poster={thumbnail}
+          controls={false} // Plyr will handle controls
         >
-          <PlyrPlayer
-            src={videoId}
-            poster={thumbnail}
-            onError={handleError}
-          />
-        </div>
-      )}
-
-      {!locked && (
-        <button 
-          onClick={toggleFullscreen}
-          className="absolute top-2 right-2 p-2 bg-black bg-opacity-50 rounded-full text-white hover:bg-opacity-75 z-50"
-        >
-          {isFullscreen ? <X className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
-        </button>
-      )}
+          <source src={videoId} type="video/mp4" />
+          Your browser does not support the video tag.
+        </video>
+      </div>
     </div>
   );
 }
