@@ -3,7 +3,7 @@
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertCircle, Maximize2, X } from 'lucide-react';
+import { AlertCircle, X, Maximize2 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import clsx from 'clsx';
 
@@ -26,9 +26,29 @@ export default function VideoPlayer({ videoId, thumbnail, locked }: VideoPlayerP
     setError('Failed to load video');
   }, []);
 
-  const toggleFullscreen = () => {
-    setIsFullscreen(!isFullscreen);
-  };
+  const toggleFullscreen = useCallback(() => {
+    if (!document.fullscreenElement) {
+      containerRef.current?.requestFullscreen().catch(() => {
+        // Some browsers might block fullscreen without user gesture
+      });
+    } else {
+      document.exitFullscreen().catch(() => {
+        // Handle errors if needed
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    const handleFullScreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullScreenChange);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullScreenChange);
+    };
+  }, []);
 
   return (
     <div 
@@ -36,7 +56,7 @@ export default function VideoPlayer({ videoId, thumbnail, locked }: VideoPlayerP
       className={clsx(
         "relative w-full h-full",
         {
-          "fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4": isFullscreen
+          "fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4": false
         }
       )}
     >
