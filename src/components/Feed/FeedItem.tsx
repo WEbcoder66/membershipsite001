@@ -1,3 +1,4 @@
+// src/components/Feed/FeedItem.tsx
 'use client';
 
 import React, { memo } from 'react';
@@ -31,25 +32,26 @@ function FeedItemBase({ post, onLike, onComment, setActiveTab }: FeedItemProps) 
   const renderLockedOverlay = () => {
     return (
       <div className="absolute inset-0 flex items-center justify-center z-50 bg-black/60">
-        <div className="
-          relative
-          w-[250px]
-          aspect-square
-          rounded-full
-          flex flex-col items-center justify-center text-center text-white p-6
-          bg-[radial-gradient(circle,_#001354_30%,_#000035_100%)]
-        ">
-          <Lock className="w-8 h-8 text-white mb-4" />
-          <h3 className="text-xl font-bold mb-2">Premium Content</h3>
-          <p className="text-sm text-gray-200 mb-4">
-            This content is available for premium members
-          </p>
-          <button
-            onClick={() => setActiveTab('membership')}
-            className="bg-yellow-400 hover:bg-yellow-500 text-black font-semibold py-2 px-4 rounded"
-          >
-            Upgrade to premium
-          </button>
+        <div className="w-[300px] flex flex-col items-center text-center p-6">
+          <div className="w-16 h-16 bg-yellow-400 rounded-full flex items-center justify-center mb-4">
+            <Lock className="w-8 h-8 text-navy-900" />
+          </div>
+          
+          <div className="bg-[#0a0b1f] p-6 rounded-lg w-full">
+            <h3 className="text-xl font-bold text-white mb-2">
+              Premium Content
+            </h3>
+            <p className="text-gray-300 mb-4">
+              This content is available for premium members
+            </p>
+            
+            <button
+              onClick={() => setActiveTab('membership')}
+              className="w-full py-2.5 px-4 bg-yellow-400 hover:bg-yellow-500 text-black font-semibold rounded-md transition-colors"
+            >
+              Upgrade Now
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -60,15 +62,17 @@ function FeedItemBase({ post, onLike, onComment, setActiveTab }: FeedItemProps) 
       case 'video':
         if (post.mediaContent?.video) {
           return (
-            <div className="relative">
+            <div className="relative w-full aspect-video">
               {contentLocked && renderLockedOverlay()}
-              <VideoPlayer
-                videoId={post.mediaContent.video.videoId}
-                thumbnail={post.mediaContent.video.thumbnail}
-                requiredTier={post.tier}
-                setActiveTab={setActiveTab}
-                locked={contentLocked}
-              />
+              <div className={`w-full h-full ${contentLocked ? "filter blur-sm" : ""}`}>
+                <VideoPlayer
+                  videoId={post.mediaContent.video.videoId}
+                  thumbnail={post.mediaContent.video.thumbnail}
+                  requiredTier={post.tier}
+                  setActiveTab={setActiveTab}
+                  locked={contentLocked}
+                />
+              </div>
             </div>
           );
         }
@@ -76,11 +80,12 @@ function FeedItemBase({ post, onLike, onComment, setActiveTab }: FeedItemProps) 
 
       case 'photo':
         if (post.mediaContent?.photo) {
-          const images = post.mediaContent.photo.images;
           return (
             <div className="relative">
               {contentLocked && renderLockedOverlay()}
-              {!contentLocked && <PhotoGallery images={images} />}
+              <div className={contentLocked ? "filter blur-sm" : ""}>
+                <PhotoGallery images={post.mediaContent.photo.images} />
+              </div>
             </div>
           );
         }
@@ -91,12 +96,12 @@ function FeedItemBase({ post, onLike, onComment, setActiveTab }: FeedItemProps) 
           return (
             <div className="relative p-4">
               {contentLocked && renderLockedOverlay()}
-              {!contentLocked && (
+              <div className={contentLocked ? "filter blur-sm" : ""}>
                 <AudioPlayer
                   url={post.mediaContent.audio.url}
                   duration={post.mediaContent.audio.duration || 'Unknown'}
                 />
-              )}
+              </div>
             </div>
           );
         }
@@ -107,14 +112,14 @@ function FeedItemBase({ post, onLike, onComment, setActiveTab }: FeedItemProps) 
           return (
             <div className="relative p-4">
               {contentLocked && renderLockedOverlay()}
-              {!contentLocked && (
+              <div className={contentLocked ? "filter blur-sm" : ""}>
                 <PollComponent
                   options={post.mediaContent.poll.options || {}}
                   endDate={post.mediaContent.poll.endDate}
                   multipleChoice={post.mediaContent.poll.multipleChoice}
                   postId={post.id}
                 />
-              )}
+              </div>
             </div>
           );
         }
@@ -124,12 +129,10 @@ function FeedItemBase({ post, onLike, onComment, setActiveTab }: FeedItemProps) 
       default:
         return (
           <div className="relative p-4">
-            {post.isLocked && contentLocked && renderLockedOverlay()}
-            {!post.isLocked || !contentLocked ? (
+            {contentLocked && renderLockedOverlay()}
+            <div className={contentLocked ? "filter blur-sm" : ""}>
               <p className="text-gray-800">{post.description}</p>
-            ) : (
-              <p className="text-gray-500 italic">Content locked. Upgrade to view.</p>
-            )}
+            </div>
           </div>
         );
     }

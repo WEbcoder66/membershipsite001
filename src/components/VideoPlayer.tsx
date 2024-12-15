@@ -1,3 +1,4 @@
+// src/components/VideoPlayer.tsx
 'use client';
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
@@ -29,17 +30,15 @@ export default function VideoPlayer({ videoId, thumbnail, locked }: VideoPlayerP
     setIsFullscreen(!isFullscreen);
   };
 
-  // Determine if video is vertical by checking thumbnail ratio (if available)
-  // If no way to determine ratio, just apply a max-height style.
-  const isVertical = true; // In a real scenario, you'd check actual dimensions.
-  
   return (
     <div 
       ref={containerRef} 
-      className={clsx("relative w-full mx-auto my-4", {
-        "fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4": isFullscreen
-      })}
-      style={{ maxHeight: isFullscreen ? 'none' : (isVertical ? '80vh' : 'auto') }}
+      className={clsx(
+        "relative w-full h-full",
+        {
+          "fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4": isFullscreen
+        }
+      )}
     >
       {error && (
         <div className="absolute top-4 left-4 right-4">
@@ -51,10 +50,7 @@ export default function VideoPlayer({ videoId, thumbnail, locked }: VideoPlayerP
       )}
 
       {!locked && (
-        <div 
-          className="relative w-full max-w-full"
-          style={{ maxHeight: isFullscreen ? '90vh' : (isVertical ? '80vh' : 'auto') }}
-        >
+        <div className="relative w-full h-full">
           <PlyrPlayer
             src={videoId}
             poster={thumbnail}

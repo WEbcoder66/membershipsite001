@@ -1,3 +1,4 @@
+// tailwind.config.ts
 import type { Config } from 'tailwindcss'
 
 const config: Config = {
@@ -9,7 +10,9 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // You can add custom colors here
+        navy: {
+          900: '#0a0b1f',
+        }
       },
     },
   },

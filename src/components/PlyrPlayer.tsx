@@ -1,3 +1,4 @@
+// src/components/PlyrPlayer.tsx
 'use client';
 
 import React, { useRef, useEffect } from 'react';
@@ -13,7 +14,6 @@ export default function PlyrPlayer({ src, poster, onError }: PlyrPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
-    // Check if window is defined to avoid SSR issues
     if (typeof window === 'undefined' || !videoRef.current) return;
 
     const video = videoRef.current;
@@ -38,7 +38,7 @@ export default function PlyrPlayer({ src, poster, onError }: PlyrPlayerProps) {
       ref={videoRef}
       className="w-full h-full"
       poster={poster}
-      controls={false} // Plyr will handle controls
+      controls={false}
     >
       <source src={src} type="video/mp4" />
       Your browser does not support the video tag.
