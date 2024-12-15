@@ -27,7 +27,9 @@ interface FeedItemProps {
 function FeedItemBase({ post, onLike, onComment, setActiveTab }: FeedItemProps) {
   const { data: session } = useSession();
   const userTier = session?.user?.membershipTier ?? 'basic';
-  const contentLocked = !hasAccess(userTier, post.tier);
+
+  // Incorporate isLocked and access check
+  const contentLocked = post.isLocked && !hasAccess(userTier, post.tier);
 
   const renderContent = () => {
     switch (post.type) {

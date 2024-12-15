@@ -10,6 +10,7 @@ interface IContent extends Document {
   createdAt: Date;
   updatedAt: Date;
   tier: MembershipTier;
+  isLocked: boolean; // Newly added field
   mediaContent?: {
     video?: {
       videoId: string;
@@ -61,6 +62,10 @@ const ContentSchema = new mongoose.Schema<IContent>({
     required: true,
     enum: ['basic', 'premium', 'allAccess'],
     default: 'basic'
+  },
+  isLocked: {
+    type: Boolean,
+    default: false
   },
   mediaContent: {
     video: {

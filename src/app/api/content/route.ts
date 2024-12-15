@@ -43,12 +43,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
+    // Determine if content should be locked based on tier
+    const isLocked = tier !== 'basic';
+
     const newContentData: any = {
       type,
       title,
       description,
       tier,
-      isLocked: (type !== 'post'), // For example, consider all non-post content locked by default
+      isLocked,
       createdAt: new Date(),
       updatedAt: new Date()
     };
@@ -144,7 +147,12 @@ export async function PATCH(req: Request) {
 
     if (title !== undefined) updateData.title = title;
     if (description !== undefined) updateData.description = description;
-    if (tier) updateData.tier = tier;
+
+    if (tier) {
+      updateData.tier = tier;
+      // Update isLocked based on the new tier
+      updateData.isLocked = tier !== 'basic';
+    }
 
     if (pollOptions && Array.isArray(pollOptions)) {
       const validOptions = pollOptions.filter((opt: string) => opt.trim());
