@@ -1,7 +1,10 @@
 'use client';
 
 import React, { useRef, useEffect } from 'react';
-import Plyr from 'plyr';
+import dynamic from 'next/dynamic';
+
+// Dynamically import Plyr only in client-side (browser) environment
+const Plyr = dynamic(() => import('plyr'), { ssr: false });
 
 interface VideoPlayerProps {
   videoId: string;
@@ -14,28 +17,30 @@ export default function VideoPlayer({ videoId, thumbnail, locked }: VideoPlayerP
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
+    // Ensure we are in a browser environment
+    if (typeof window === 'undefined') return;
     if (!videoRef.current) return;
 
-    // Initialize Plyr with full-screen control included
-    const player = new Plyr(videoRef.current, {
-      controls: [
-        'play', 
-        'progress', 
-        'current-time', 
-        'mute', 
-        'volume', 
-        'fullscreen'
-      ],
-      fullscreen: { enabled: true, fallback: true, iosNative: false },
+    // Importing Plyr this way ensures it loads only on client
+    import('plyr').then(({ default: PlyrConstructor }) => {
+      const player = new PlyrConstructor(videoRef.current, {
+        controls: [
+          'play', 
+          'progress', 
+          'current-time', 
+          'mute', 
+          'volume', 
+          'fullscreen'
+        ],
+        fullscreen: { enabled: true, fallback: true, iosNative: false },
+      });
+      
+      return () => {
+        player.destroy();
+      };
     });
-
-    // Clean up on unmount
-    return () => {
-      player.destroy();
-    };
   }, []);
 
-  // Use a responsive container with a fixed aspect ratio and object-contain
   return (
     <div className="w-full relative">
       <div className="relative overflow-hidden" style={{ paddingTop: '56.25%' }}>
@@ -43,7 +48,7 @@ export default function VideoPlayer({ videoId, thumbnail, locked }: VideoPlayerP
           ref={videoRef}
           className="absolute top-0 left-0 w-full h-full object-contain"
           poster={thumbnail}
-          controls={false} // Plyr will handle controls
+          controls={false} // Plyr handles controls
         >
           <source src={videoId} type="video/mp4" />
           Your browser does not support the video tag.
