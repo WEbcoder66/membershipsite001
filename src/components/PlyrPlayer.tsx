@@ -1,7 +1,8 @@
+// src/components/PlyrPlayer.tsx
 'use client';
 
 import React, { useRef, useEffect } from 'react';
-import Plyr from 'plyr';
+import 'plyr/dist/plyr.css';
 
 interface PlyrPlayerProps {
   src: string;
@@ -11,34 +12,100 @@ interface PlyrPlayerProps {
 
 export default function PlyrPlayer({ src, poster, onError }: PlyrPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const playerRef = useRef<any>(null);
 
   useEffect(() => {
-    // Check if window is defined to avoid SSR issues
-    if (typeof window === 'undefined' || !videoRef.current) return;
+    if (!videoRef.current) return;
 
-    const video = videoRef.current;
-    const player = new Plyr(video, {
-      controls: ['play', 'progress', 'current-time', 'mute', 'volume', 'fullscreen']
-    });
+    const initializePlyr = async () => {
+      try {
+        const Plyr = (await import('plyr')).default;
+        
+        if (playerRef.current) {
+          playerRef.current.destroy();
+        }
 
-    const handleError = () => {
-      onError?.();
+        playerRef.current = new Plyr(videoRef.current, {
+          controls: [
+            'play-large',
+            'play',
+            'progress',
+            'current-time',
+            'duration',
+            'mute',
+            'volume',
+            'settings',
+            'fullscreen'
+          ],
+          settings: ['quality', 'speed'],
+          ratio: 'auto',
+          fullscreen: {
+            enabled: true,
+            fallback: true,
+            iosNative: true
+          },
+          resetOnEnd: true,
+          quality: {
+            default: 1080,
+            options: [4320, 2880, 2160, 1440, 1080, 720, 576, 480, 360, 240]
+          }
+        });
+
+        const video = videoRef.current;
+
+        // Handle video metadata loaded to set proper aspect ratio
+        const handleMetadata = () => {
+          if (!video) return;
+          
+          const ratio = video.videoWidth / video.videoHeight;
+          const wrapper = video.closest('.plyr__video-embed');
+          
+          if (wrapper) {
+            if (ratio < 1) {
+              wrapper.classList.add('vertical-video');
+              wrapper.classList.remove('horizontal-video');
+            } else {
+              wrapper.classList.add('horizontal-video');
+              wrapper.classList.remove('vertical-video');
+            }
+          }
+        };
+
+        const handleError = (e: Event) => {
+          console.error('Video playback error:', e);
+          onError?.();
+        };
+
+        video.addEventListener('loadedmetadata', handleMetadata);
+        video.addEventListener('error', handleError);
+
+        return () => {
+          video.removeEventListener('loadedmetadata', handleMetadata);
+          video.removeEventListener('error', handleError);
+        };
+
+      } catch (error) {
+        console.error('Error initializing Plyr:', error);
+        onError?.();
+      }
     };
 
-    video.addEventListener('error', handleError);
+    initializePlyr();
 
     return () => {
-      video.removeEventListener('error', handleError);
-      player.destroy();
+      if (playerRef.current) {
+        playerRef.current.destroy();
+      }
     };
-  }, [onError]);
+  }, [src, onError]);
 
   return (
     <video
       ref={videoRef}
-      className="w-full h-full"
+      className="plyr-react plyr"
       poster={poster}
-      controls={false} // Plyr will handle controls
+      playsInline
+      preload="metadata"
     >
       <source src={src} type="video/mp4" />
       Your browser does not support the video tag.

@@ -1,54 +1,120 @@
+// src/components/VideoPlayer.tsx
 'use client';
 
-import React, { useRef, useEffect } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AlertCircle, Lock } from 'lucide-react';
 import dynamic from 'next/dynamic';
+import { useSession } from 'next-auth/react';
 
-// Dynamically import Plyr only on the client to avoid SSR issues
-const Plyr = dynamic(() => import('plyr'), { ssr: false });
+const PlyrPlayer = dynamic(() => import('./PlyrPlayer'), { ssr: false });
 
 interface VideoPlayerProps {
-  videoUrl: string;  // Make sure this points to a playable video file URL
+  videoId: string;
   thumbnail?: string;
   requiredTier?: string;
+  setActiveTab?: (tab: string) => void;
   locked: boolean;
 }
 
-export default function VideoPlayer({ videoUrl, thumbnail, locked }: VideoPlayerProps) {
-  const videoRef = useRef<HTMLVideoElement>(null);
+export default function VideoPlayer({ 
+  videoId, 
+  thumbnail, 
+  requiredTier,
+  setActiveTab,
+  locked 
+}: VideoPlayerProps) {
+  const [error, setError] = useState<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const { data: session } = useSession();
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    if (!videoRef.current) return;
-
-    import('plyr').then(({ default: PlyrConstructor }) => {
-      const player = new PlyrConstructor(videoRef.current, {
-        controls: ['play', 'progress', 'current-time', 'mute', 'volume', 'fullscreen'],
-        fullscreen: { enabled: true, fallback: true, iosNative: false },
-      });
-
-      return () => {
-        player.destroy();
-      };
-    });
+  const handleError = useCallback(() => {
+    setError('Failed to load video');
   }, []);
 
+  // Handle Digital Ocean Spaces URL
+  const getVideoUrl = (id: string | null | undefined) => {
+    if (!id) return '';
+    
+    try {
+      // If id is already a full URL, return it
+      if (typeof id === 'string' && id.includes('http')) {
+        return id;
+      }
+      // Otherwise construct the URL (adjust this based on your DO setup)
+      return `${process.env.NEXT_PUBLIC_DO_SPACES_URL}/${id}`;
+    } catch (error) {
+      console.error('Error processing video URL:', error);
+      return '';
+    }
+  };
+
+  if (!videoId) {
+    return (
+      <div className="relative w-full aspect-video bg-gray-900 rounded-lg flex items-center justify-center">
+        <AlertCircle className="w-8 h-8 text-gray-400" />
+      </div>
+    );
+  }
+
   return (
-    <div className="w-full relative">
-      {/* 
-        A 16:9 aspect ratio container: 
-        16 / 9 = 1.777... 
-        (9/16)*100% = 56.25% 
-      */}
-      <div className="relative overflow-hidden" style={{ paddingTop: '56.25%' }}>
-        <video
-          ref={videoRef}
-          className="absolute top-0 left-0 w-full h-full object-contain"
-          poster={thumbnail}
-          controls={false} // Plyr manages controls
-        >
-          <source src={videoUrl} type="video/mp4" />
-          Your browser does not support the video tag.
-        </video>
+    <div 
+      ref={containerRef}
+      className="relative w-full overflow-hidden rounded-lg"
+    >
+      {error && (
+        <div className="absolute top-4 left-4 right-4 z-50">
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        </div>
+      )}
+
+      <div className="relative w-full">
+        {locked ? (
+          <div className="relative w-full aspect-video bg-black">
+            {thumbnail && (
+              <div 
+                className="absolute inset-0 bg-cover bg-center opacity-30"
+                style={{ backgroundImage: `url(${thumbnail})` }}
+              />
+            )}
+            <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+              <div className="text-center p-6">
+                <div className="w-16 h-16 rounded-full bg-black/30 flex items-center justify-center mx-auto mb-4">
+                  <Lock className="w-8 h-8 text-white" />
+                </div>
+                <h3 className="text-xl font-bold text-white mb-4">
+                  {`This content requires ${requiredTier} access`}
+                </h3>
+                {!session?.user ? (
+                  <button
+                    onClick={() => window.location.href = '/auth/signin'}
+                    className="bg-yellow-400 px-6 py-2 rounded-md font-semibold text-black hover:bg-yellow-500 transition-colors"
+                  >
+                    Sign In to Watch
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setActiveTab?.('membership')}
+                    className="bg-yellow-400 px-6 py-2 rounded-md font-semibold text-black hover:bg-yellow-500 transition-colors"
+                  >
+                    Upgrade Membership
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="plyr__video-embed">
+            <PlyrPlayer
+              src={getVideoUrl(videoId)}
+              poster={thumbnail}
+              onError={handleError}
+            />
+          </div>
+        )}
       </div>
     </div>
   );
