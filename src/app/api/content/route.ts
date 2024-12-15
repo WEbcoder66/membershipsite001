@@ -57,7 +57,6 @@ export async function POST(req: Request) {
     };
 
     if (type === 'poll') {
-      // pollOptions expected as an array of strings
       if (!Array.isArray(pollOptions) || pollOptions.length < 2) {
         return NextResponse.json({ error: 'Poll requires at least 2 options' }, { status: 400 });
       }

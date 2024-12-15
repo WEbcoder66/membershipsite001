@@ -182,8 +182,6 @@ export default function ContentManager() {
         };
       } else if (contentType === 'post') {
         mediaContent = {};
-      } else if (contentType === 'poll') {
-        // handled in API route via pollOptions
       }
 
       const contentRes = await fetch('/api/content', {

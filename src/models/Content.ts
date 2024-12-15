@@ -10,7 +10,7 @@ interface IContent extends Document {
   createdAt: Date;
   updatedAt: Date;
   tier: MembershipTier;
-  isLocked: boolean; // Newly added field
+  isLocked: boolean;
   mediaContent?: {
     video?: {
       videoId: string;

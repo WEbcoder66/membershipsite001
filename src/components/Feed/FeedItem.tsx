@@ -9,7 +9,7 @@ import AudioPlayer from '@/components/Feed/AudioPlayer';
 import PollComponent from '@/components/Feed/PollComponent';
 import { useSession } from 'next-auth/react';
 
-// Helper function to determine if the user can access the content
+// Determine if user has access based on tier
 function hasAccess(userTier: string, contentTier: string): boolean {
   const tiers = ['basic', 'premium', 'allAccess'];
   const userIndex = tiers.indexOf(userTier);
@@ -27,12 +27,12 @@ interface FeedItemProps {
 function FeedItemBase({ post, onLike, onComment, setActiveTab }: FeedItemProps) {
   const { data: session } = useSession();
   const userTier = session?.user?.membershipTier ?? 'basic';
-  const contentLocked = post.isLocked && !hasAccess(userTier, post.tier);
+  const contentLocked = !hasAccess(userTier, post.tier);
 
   const renderContent = () => {
     switch (post.type) {
       case 'video':
-        if (post.mediaContent?.video?.url) {
+        if (post.mediaContent?.video) {
           return (
             <div className="relative">
               {contentLocked && (
@@ -53,21 +53,20 @@ function FeedItemBase({ post, onLike, onComment, setActiveTab }: FeedItemProps) 
                   </div>
                 </div>
               )}
-              {!contentLocked && (
-                <VideoPlayer
-                  videoUrl={post.mediaContent.video.url}
-                  thumbnail={post.mediaContent.video.thumbnail}
-                  requiredTier={post.tier}
-                  locked={contentLocked}
-                />
-              )}
+              <VideoPlayer
+                videoId={post.mediaContent.video.videoId}
+                thumbnail={post.mediaContent.video.thumbnail}
+                requiredTier={post.tier}
+                setActiveTab={setActiveTab}
+                locked={contentLocked}
+              />
             </div>
           );
         }
         return null;
 
       case 'photo':
-        if (post.mediaContent?.photo?.images) {
+        if (post.mediaContent?.photo) {
           const images = post.mediaContent.photo.images;
           return (
             <div className="relative">
@@ -96,7 +95,7 @@ function FeedItemBase({ post, onLike, onComment, setActiveTab }: FeedItemProps) 
         return null;
 
       case 'audio':
-        if (post.mediaContent?.audio?.url) {
+        if (post.mediaContent?.audio) {
           return (
             <div className="p-4 relative">
               {contentLocked && (
@@ -129,7 +128,7 @@ function FeedItemBase({ post, onLike, onComment, setActiveTab }: FeedItemProps) 
         return null;
 
       case 'poll':
-        if (post.mediaContent?.poll?.options) {
+        if (post.mediaContent?.poll) {
           return (
             <div className="p-4 relative">
               {contentLocked && (
@@ -152,7 +151,7 @@ function FeedItemBase({ post, onLike, onComment, setActiveTab }: FeedItemProps) 
               )}
               {!contentLocked && (
                 <PollComponent
-                  options={post.mediaContent.poll.options}
+                  options={post.mediaContent.poll.options || {}}
                   endDate={post.mediaContent.poll.endDate}
                   multipleChoice={post.mediaContent.poll.multipleChoice}
                   postId={post.id}
