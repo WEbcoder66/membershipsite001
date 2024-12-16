@@ -1,5 +1,4 @@
 // src/lib/authOptions.ts
-
 import { AuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import dbConnect from "@/lib/mongodb";
@@ -17,22 +16,47 @@ export const authOptions: AuthOptions = {
       credentials: { email: { label: "Email" }, password: { label: "Password" } },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
+
         await dbConnect();
         const user = await User.findOne({ email: credentials.email });
-        if (!user) return null;
 
-        const isValid = await bcrypt.compare(credentials.password, user.hashedPassword);
-        if (!isValid) return null;
+        // If user found in DB, verify password
+        if (user) {
+          const isValid = await bcrypt.compare(credentials.password, user.hashedPassword);
+          if (!isValid) return null;
+          return {
+            id: user._id.toString(),
+            name: user.username,
+            email: user.email,
+            image: null,
+            isAdmin: user.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL,
+            membershipTier: user.membershipTier || 'basic',
+          };
+        }
 
-        // Since there's no avatar field in the user schema, set image to null
-        return {
-          id: user._id.toString(),
-          name: user.username,
-          email: user.email,
-          image: null,
-          isAdmin: user.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL,
-          membershipTier: user.membershipTier || 'basic',
-        };
+        // If no user in DB and this email matches admin email in env vars,
+        // and password matches the admin password from env, allow login.
+        const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
+        const adminPassword = process.env.NEXT_PUBLIC_ADMIN_PASSWORD;
+
+        if (
+          adminEmail &&
+          adminPassword &&
+          credentials.email === adminEmail &&
+          credentials.password === adminPassword
+        ) {
+          return {
+            id: 'admin-env-user',
+            name: 'Admin',
+            email: adminEmail,
+            image: null,
+            isAdmin: true,
+            membershipTier: 'allAccess',
+          };
+        }
+
+        // Otherwise, no valid user
+        return null;
       },
     }),
   ],
