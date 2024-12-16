@@ -13,7 +13,7 @@ export async function GET() {
         description: 'Check out our latest project!',
         type: 'video',
         createdAt: new Date().toISOString(),
-        tier: 'basic',
+        tier: 'free', // Changed from 'basic' to 'free'
         isLocked: false,
         likes: 0,
         comments: 0,
@@ -26,7 +26,7 @@ export async function GET() {
           }
         }
       }
-      // Add more demo posts
+      // Add more demo posts as needed
     ];
 
     return NextResponse.json({ posts });

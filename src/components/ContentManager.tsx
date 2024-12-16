@@ -1,3 +1,4 @@
+// src/components/ContentManager.tsx
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
@@ -20,7 +21,7 @@ interface Content {
   title: string;
   description?: string;
   type: 'video' | 'photo' | 'audio' | 'post' | 'poll';
-  tier: 'basic' | 'premium' | 'allAccess';
+  tier: 'free' | 'premium' | 'allAccess';
   createdAt: string;
   mediaContent?: Record<string, any>;
 }
@@ -34,7 +35,7 @@ export default function ContentManager() {
   const [contentType, setContentType] = useState<'video' | 'photo' | 'audio' | 'post' | 'poll'>('video');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [membershipTier, setMembershipTier] = useState<'basic' | 'premium' | 'allAccess'>('basic');
+  const [membershipTier, setMembershipTier] = useState<'free' | 'premium' | 'allAccess'>('free');
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [content, setContent] = useState<Content[]>([]);
@@ -48,7 +49,7 @@ export default function ContentManager() {
     id: string;
     title: string;
     description: string;
-    tier: 'basic' | 'premium' | 'allAccess';
+    tier: 'free' | 'premium' | 'allAccess';
   } | null>(null);
 
   const fetchContent = useCallback(async () => {
@@ -94,7 +95,7 @@ export default function ContentManager() {
     setPollOptions(['', '']);
     setError(null);
     setContentType('video');
-    setMembershipTier('basic');
+    setMembershipTier('free');
     setSelectedFiles([]);
   };
 
@@ -124,7 +125,7 @@ export default function ContentManager() {
     }
 
     const bucketName = 'my-site-uploads'; 
-    const region = process.env.NEXT_PUBLIC_DO_REGION || 'nyc3';
+    const region = process.env.DO_REGION || 'nyc3';
     return `https://${bucketName}.${region}.digitaloceanspaces.com/${fileName}`;
   }
 
@@ -401,7 +402,7 @@ export default function ContentManager() {
               onChange={(e) => setMembershipTier(e.target.value as any)}
               className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400 text-black"
             >
-              <option value="basic">Basic</option>
+              <option value="free">Free</option>
               <option value="premium">Premium</option>
               <option value="allAccess">All Access</option>
             </select>
@@ -560,7 +561,7 @@ export default function ContentManager() {
                           onChange={(e) => setEditingContent({ ...editingContent, tier: e.target.value as any })}
                           className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400 text-black"
                         >
-                          <option value="basic">Basic</option>
+                          <option value="free">Free</option>
                           <option value="premium">Premium</option>
                           <option value="allAccess">All Access</option>
                         </select>

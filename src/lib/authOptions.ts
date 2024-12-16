@@ -30,12 +30,11 @@ export const authOptions: AuthOptions = {
             email: user.email,
             image: null,
             isAdmin: user.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL,
-            membershipTier: user.membershipTier || 'basic',
+            membershipTier: user.membershipTier || 'free',
           };
         }
 
-        // If no user in DB and this email matches admin email in env vars,
-        // and password matches the admin password from env, allow login.
+        // If no user found in DB and this email matches admin email and password from env vars:
         const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
         const adminPassword = process.env.NEXT_PUBLIC_ADMIN_PASSWORD;
 
@@ -65,7 +64,7 @@ export const authOptions: AuthOptions = {
       if (user) {
         token.id = user.id;
         token.isAdmin = user.isAdmin ?? false;
-        token.membershipTier = user.membershipTier ?? "basic";
+        token.membershipTier = user.membershipTier ?? "free";
         token.name = user.name;
         token.picture = user.image; 
       }
