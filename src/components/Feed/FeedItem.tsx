@@ -143,7 +143,7 @@ function FeedItemBase({ post, onLike, onComment, setActiveTab }: FeedItemProps) 
       <div className="p-4 border-b">
         <div className="flex justify-between items-center">
           <h2 className="font-bold text-lg text-black">{post.title}</h2>
-          {post.tier !== 'basic' && (
+          {post.tier !== 'free' && (
             <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm font-medium">
               {post.tier}
             </span>
