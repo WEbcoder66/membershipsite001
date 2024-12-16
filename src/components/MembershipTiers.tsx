@@ -1,11 +1,12 @@
-// src/components/MembershipTiers.tsx
+'use client';
+
 import React, { useState } from 'react';
 import { useSession } from 'next-auth/react';
 
 const MEMBERSHIP_TIERS = {
-  basic: {
-    name: 'Basic',
-    price: 4.99,
+  free: {
+    name: 'Free',
+    price: 0.00,
     features: [
       "Access to weekly content updates",
       "Basic community features",
@@ -18,7 +19,7 @@ const MEMBERSHIP_TIERS = {
     name: 'Premium',
     price: 9.99,
     features: [
-      "All Basic features",
+      "All Free features",
       "Exclusive premium content",
       "Priority support",
       "Monthly live sessions",
@@ -67,7 +68,6 @@ export default function MembershipTiers({ onSubscribe }: MembershipTiersProps) {
         throw new Error(data.error || 'Failed to update membership tier');
       }
       onSubscribe?.();
-      // Reload the page to update session/tier visually
       window.location.reload();
     } catch (error) {
       console.error('Subscription error:', error);
@@ -78,7 +78,7 @@ export default function MembershipTiers({ onSubscribe }: MembershipTiersProps) {
   };
 
   return (
-    <div className="max-w-5xl mx-auto px-4">
+    <div className="max-w-5xl mx-auto px-4" id="membership-section">
       <div className="text-center mb-12">
         <h2 className="text-xl font-semibold text-black">Monthly</h2>
       </div>
