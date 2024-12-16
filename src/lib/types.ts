@@ -1,6 +1,4 @@
-// src/lib/types.ts
-
-export type MembershipTier = 'basic' | 'premium' | 'allAccess';
+export type MembershipTier = 'free' | 'premium' | 'allAccess';
 export type ContentType = 'post' | 'video' | 'photo' | 'audio' | 'poll'; 
 export type OrderStatus = 'pending' | 'processing' | 'completed' | 'cancelled';
 export type PaymentStatus = 'pending' | 'completed' | 'failed' | 'refunded';
@@ -50,7 +48,7 @@ export interface Content {
     };
   };
   likes?: number;
-  comments?: number; // Ensure comments is optional here
+  comments?: number;
   views?: number;
   tags?: string[];
   category?: string;
@@ -68,7 +66,7 @@ export interface Post {
   tier: MembershipTier;
   isLocked: boolean;
   likes: number;
-  comments?: number; // Add this line to ensure Post has comments
+  comments?: number;
   price?: number;
   thumbnailUrl?: string;
   coverImageUrl?: string;
@@ -114,7 +112,6 @@ export interface Post {
   category?: string;
 }
 
-// Product interface
 export interface Product {
   id: string;
   name: string;
@@ -137,12 +134,11 @@ export interface Product {
   };
 }
 
-// User interface
 export interface User {
   id: string;
   name: string;
   email: string;
-  username?: string; // Add this line
+  username?: string; 
   avatar?: string;
   membershipTier?: MembershipTier;
   isAdmin?: boolean;
@@ -153,7 +149,6 @@ export interface User {
   settings?: UserSettings;
 }
 
-// User Settings interface
 export interface UserSettings {
   notifications: boolean;
   emailPreferences: {
@@ -166,7 +161,6 @@ export interface UserSettings {
   language?: string;
 }
 
-// Comment interface
 export interface Comment {
   id: string;
   postId: string;
@@ -184,7 +178,6 @@ export interface Comment {
   editedAt?: string;
 }
 
-// Order interface
 export interface Order {
   id: string;
   userId: string;
@@ -199,7 +192,6 @@ export interface Order {
   trackingNumber?: string;
 }
 
-// Order Item interface
 export interface OrderItem {
   productId: string;
   quantity: number;
@@ -211,7 +203,6 @@ export interface OrderItem {
   };
 }
 
-// Address interface
 export interface Address {
   name: string;
   line1: string;
@@ -223,7 +214,6 @@ export interface Address {
   phone?: string;
 }
 
-// Notification interface
 export interface Notification {
   id: string;
   userId: string;
@@ -236,7 +226,6 @@ export interface Notification {
   metadata?: Record<string, any>;
 }
 
-// Service Response interface
 export interface ServiceResponse<T> {
   success: boolean;
   data?: T;
@@ -250,7 +239,6 @@ export interface ServiceResponse<T> {
   };
 }
 
-// Subscription interface
 export interface Subscription {
   id: string;
   userId: string;
@@ -269,7 +257,6 @@ export interface Subscription {
   cancelReason?: string;
 }
 
-// Video Metadata interface
 export interface VideoMetadata {
   videoId: string;
   title: string;
@@ -284,7 +271,6 @@ export interface VideoMetadata {
   updatedAt: string;
 }
 
-// Analytics Event interface
 export interface AnalyticsEvent {
   id: string;
   type: string;
@@ -300,7 +286,6 @@ export interface AnalyticsEvent {
   };
 }
 
-// Site Settings interface
 export interface SiteSettings {
   title: string;
   description: string;

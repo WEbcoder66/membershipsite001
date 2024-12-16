@@ -1,7 +1,7 @@
 import mongoose, { Document } from 'mongoose';
 
 type ContentType = 'video' | 'photo' | 'audio' | 'post' | 'poll';
-type MembershipTier = 'basic' | 'premium' | 'allAccess';
+type MembershipTier = 'free' | 'premium' | 'allAccess';
 
 interface IContent extends Document {
   type: ContentType;
@@ -60,8 +60,8 @@ const ContentSchema = new mongoose.Schema<IContent>({
   tier: {
     type: String,
     required: true,
-    enum: ['basic', 'premium', 'allAccess'],
-    default: 'basic'
+    enum: ['free', 'premium', 'allAccess'],
+    default: 'free'
   },
   isLocked: {
     type: Boolean,

@@ -80,8 +80,8 @@ export default function ContentPage() {
 
   const userTier = session?.user?.membershipTier;
   const hasAccess = userTier 
-    ? ['basic', 'premium', 'allAccess'].indexOf(userTier) >= 
-      ['basic', 'premium', 'allAccess'].indexOf(content.tier)
+    ? ['free', 'premium', 'allAccess'].indexOf(userTier) >= 
+      ['free', 'premium', 'allAccess'].indexOf(content.tier)
     : false;
 
   return (

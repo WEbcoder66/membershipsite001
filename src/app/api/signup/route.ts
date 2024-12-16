@@ -31,7 +31,7 @@ export async function POST(request: Request) {
       username: name,
       email,
       hashedPassword,
-      membershipTier: 'basic',
+      membershipTier: 'free',
       purchases: []
     });
 

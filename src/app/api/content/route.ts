@@ -44,7 +44,7 @@ export async function POST(req: Request) {
     }
 
     // Determine if content should be locked based on tier
-    const isLocked = tier !== 'basic';
+    const isLocked = tier !== 'free';
 
     const newContentData: any = {
       type,
@@ -150,7 +150,7 @@ export async function PATCH(req: Request) {
     if (tier) {
       updateData.tier = tier;
       // Update isLocked based on the new tier
-      updateData.isLocked = tier !== 'basic';
+      updateData.isLocked = tier !== 'free';
     }
 
     if (pollOptions && Array.isArray(pollOptions)) {

@@ -1,8 +1,7 @@
-// src/lib/constants.ts
 export const MEMBERSHIP_TIERS = {
-  basic: {
-    name: 'Basic',
-    price: 4.99,
+  free: {
+    name: 'Free',
+    price: 4.99, // If you want this to actually be 0.00, set it accordingly.
     annualPrice: 49.99,
     features: [
       "Access to weekly content updates",
@@ -18,7 +17,7 @@ export const MEMBERSHIP_TIERS = {
     price: 9.99,
     annualPrice: 99.99,
     features: [
-      "All Basic features",
+      "All Free features",
       "Exclusive premium content",
       "Priority support",
       "Monthly live sessions",
@@ -119,7 +118,7 @@ export const API_ENDPOINTS = {
 } as const;
 
 export const LIMITS = {
-  maxFileSize: 10 * 1024 * 1024, // 10MB
+  maxFileSize: 10 * 1024 * 1024,
   maxFiles: 5,
   maxCommentLength: 1000,
   maxTitleLength: 100,

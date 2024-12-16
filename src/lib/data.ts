@@ -1,5 +1,4 @@
-// src/lib/data.ts
-import { Post, MembershipTier } from './types';
+import { Post } from './types';
 
 export const posts: Post[] = [
   {
@@ -51,7 +50,7 @@ export const posts: Post[] = [
     description: 'Take a tour of our newly upgraded studio!',
     content: 'Gallery content here...',
     createdAt: new Date().toISOString(),
-    tier: 'basic',
+    tier: 'free',
     isLocked: false,
     likes: 256,
     comments: 67,
@@ -89,7 +88,7 @@ export const posts: Post[] = [
     description: 'Join us for an in-depth discussion about content creation.',
     content: 'Audio content here...',
     createdAt: new Date().toISOString(),
-    tier: 'basic',
+    tier: 'free',
     isLocked: false,
     likes: 92,
     comments: 28,
@@ -160,7 +159,7 @@ export const posts: Post[] = [
     description: 'Help us decide our next content focus!',
     content: 'Poll content here...',
     createdAt: new Date().toISOString(),
-    tier: 'basic',
+    tier: 'free',
     isLocked: false,
     likes: 89,
     comments: 23,
@@ -191,10 +190,10 @@ export const posts: Post[] = [
 ];
 
 export const MEMBERSHIP_TIERS = {
-  basic: {
-    name: 'Basic',
-    price: 4.99,
-    annualPrice: 49.99,
+  free: {
+    name: 'Free',
+    price: 0.00,
+    annualPrice: 0.00,
     features: [
       'Access to basic content',
       'Community features',
@@ -207,8 +206,8 @@ export const MEMBERSHIP_TIERS = {
     price: 9.99,
     annualPrice: 99.99,
     features: [
-      'All Basic features',
-      'Premium content access',
+      'All Free features',
+      'Exclusive premium content',
       'Priority support',
       'Monthly live sessions',
       'Member events'
@@ -248,7 +247,7 @@ export const comments = [
           id: 'user2',
           name: 'Jane Smith',
           avatar: '/images/profiles/user2.jpg',
-          tier: 'basic'
+          tier: 'free'
         },
         content: 'Totally agree! The production quality is outstanding.',
         createdAt: new Date(Date.now() - 1800000).toISOString(),

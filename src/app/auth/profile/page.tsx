@@ -16,12 +16,10 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (!session?.user) {
-      // If not signed in, redirect to sign in
       router.push('/auth/signin');
     } else {
-      // Set initial username
       setUsername(session.user.name ?? '');
-      setSelectedTier(session.user.membershipTier ?? 'basic');
+      setSelectedTier(session.user.membershipTier ?? 'free');
     }
   }, [session, router]);
 
@@ -52,7 +50,6 @@ export default function ProfilePage() {
   const handleTierChange = async (newTier: string) => {
     if (session?.user?.membershipTier === newTier) return;
     setShowProcessing(true);
-    // Simulate processing
     setTimeout(async () => {
       const res = await fetch('/api/user/updateTier', {
         method: 'POST',
@@ -126,11 +123,11 @@ export default function ProfilePage() {
           ) : (
             <div className="space-y-2">
               <button
-                disabled={session.user.membershipTier === 'basic'}
-                onClick={() => handleTierChange('basic')}
+                disabled={session.user.membershipTier === 'free'}
+                onClick={() => handleTierChange('free')}
                 className="w-full py-2 bg-gray-200 hover:bg-gray-300 text-black rounded"
               >
-                Switch to Basic
+                Switch to Free
               </button>
               <button
                 disabled={session.user.membershipTier === 'premium'}
@@ -150,7 +147,7 @@ export default function ProfilePage() {
           )}
         </div>
 
-        {/* Other profile options */}
+        {/* Additional Options */}
         <div className="mt-8">
           <h2 className="text-xl font-bold mb-2">Additional Options</h2>
           <ul className="list-disc pl-5 text-gray-700 space-y-2">

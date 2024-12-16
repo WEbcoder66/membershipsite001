@@ -1,4 +1,3 @@
-// src/app/admin/dashboard/page.tsx
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -42,7 +41,7 @@ export default function AdminDashboard() {
     },
     members: {
       total: 156,
-      basic: 89,
+      free: 89,
       premium: 45,
       allAccess: 22
     },
@@ -121,7 +120,7 @@ export default function AdminDashboard() {
               {statsData.members.total}
             </p>
             <div className="text-sm text-gray-600">
-              {statsData.members.basic} basic members<br />
+              {statsData.members.free} free members<br />
               {statsData.members.premium} premium members<br />
               {statsData.members.allAccess} all-access members
             </div>
