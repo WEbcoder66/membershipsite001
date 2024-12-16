@@ -34,7 +34,7 @@ export const authOptions: AuthOptions = {
           };
         }
 
-        // If no user found in DB and this email matches admin email and password from env vars:
+        // If no user in DB and this email matches admin credentials from env:
         const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
         const adminPassword = process.env.NEXT_PUBLIC_ADMIN_PASSWORD;
 
@@ -66,17 +66,36 @@ export const authOptions: AuthOptions = {
         token.isAdmin = user.isAdmin ?? false;
         token.membershipTier = user.membershipTier ?? "free";
         token.name = user.name;
-        token.picture = user.image; 
+        token.picture = user.image;
       }
       return token;
     },
-    session({ session, token }) {
-      if (session.user && token) {
-        session.user.id = token.id as string;
-        session.user.isAdmin = token.isAdmin as boolean;
-        session.user.membershipTier = token.membershipTier as string;
-        session.user.name = token.name as string;
-        session.user.image = token.picture as string | null;
+    async session({ session, token }) {
+      if (token?.id) {
+        // Fetch user data from DB to ensure latest membership tier is used
+        await dbConnect();
+        const dbUser = await User.findById(token.id);
+        if (dbUser) {
+          session.user = {
+            id: dbUser._id.toString(),
+            name: dbUser.username,
+            email: dbUser.email,
+            image: null,
+            isAdmin: dbUser.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL,
+            membershipTier: dbUser.membershipTier || 'free',
+          };
+        } else {
+          // If user not found, fallback to token values
+          session.user = {
+            id: token.id as string,
+            name: token.name as string,
+            // Use optional chaining here to avoid type errors:
+            email: session.user?.email ?? '',
+            image: token.picture as string | null,
+            isAdmin: token.isAdmin as boolean,
+            membershipTier: token.membershipTier as string,
+          };
+        }
       }
       return session;
     },
